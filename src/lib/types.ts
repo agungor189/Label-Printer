@@ -12,6 +12,9 @@ export interface ProductData {
   lokasyon: string;
   not: string;
   printQty: number;
+  tip?: string;
+  urunAgirligi?: string;
+  kutuAgirligi?: string;
 }
 
 export type QRConfigType = 'all_info' | 'sku_only' | 'custom_url';
@@ -34,20 +37,22 @@ export interface LabelElement {
   y: number; // in mm
   width: number; // in mm
   height: number; // in mm
-  value: string; // text content or Dynamic placeholders
-  fontSize?: number; // in mm
+  value: string;
+  fontSize?: number;       // in mm
   fontWeight?: 'normal' | 'bold' | 'black';
   textAlign?: 'left' | 'center' | 'right';
-  borderWidth?: number; // in mm for box/line
-  showLabel?: boolean; // If text element displays its title like "SKU:"
-  label?: string; // e.g. "SKU"
+  borderWidth?: number;    // mm for box/line
+  showLabel?: boolean;
+  label?: string;
+  visible?: boolean;       // default true
+  locked?: boolean;        // default false
+  showBarcodeText?: boolean; // for barcode: render value below
 }
 
 export interface LabelTemplate {
   id: string;
   name: string;
-  width: number; // usually 100
-  height: number; // usually 100
+  width: number;  // mm (typically 100)
+  height: number; // mm (typically 100)
   elements: LabelElement[];
 }
-

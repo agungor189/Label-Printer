@@ -7,7 +7,7 @@ import { parseFile } from './lib/fileParser';
 import { autoMapColumns, processMappedData, generatePrintableList, ProcessedRow } from './lib/dataProcessor';
 import { ProductData, LabelSettings, LabelTemplate } from './lib/types';
 import { DEFAULT_TEMPLATE } from './lib/templates';
-import { generateLabelsPDF } from './lib/pdfGenerator';
+import { generatePdfFromDesign } from './lib/pdfGenerator';
 import { cn } from './lib/utils';
 import { DashboardView } from './components/DashboardView';
 import { DesignEditor } from './components/DesignEditor';
@@ -32,11 +32,14 @@ const DEFAULT_PRODUCT: ProductData = {
   paketNo: "",
   toplamPaket: "4",
   urunAdi: "Yuvarlak Boru 90° Dirsek Modüler Bağlantı Elemanı",
-  partiLot: "LOT-2026-05-A",
+  partiLot: "2026-5",
   paketIciAdet: "200",
   lokasyon: "A-1-P3",
   not: "Gelen ürün ana paket",
-  printQty: 1
+  printQty: 1,
+  tip: "Dirsek",
+  urunAgirligi: "12 g",
+  kutuAgirligi: "2.4 kg"
 };
 
 export type AppView = 'dashboard' | 'mapping' | 'validation' | 'design' | 'preview' | 'settings';
@@ -161,13 +164,19 @@ export default function App() {
   };
 
   const printPdf = async () => {
-    if (printableData.length === 0) return;
+    if (printableData.length === 0) {
+      alert('PDF oluşturmak için önce listeye ürün ekleyin.');
+      return;
+    }
     setIsGenerating(true);
     try {
-      await generateLabelsPDF('pdf-generation-container', `dsdst_etiketler_${new Date().toISOString().split('T')[0]}.pdf`);
-    } catch (error) {
+      const result = await generatePdfFromDesign(printableData, activeTemplate, settings, {
+        filename: `dsdst_etiketler_${new Date().toISOString().split('T')[0]}.pdf`,
+      });
+      alert(`PDF oluşturuldu — ${result.pages} sayfa, ${result.objectsRendered} obje çizildi.`);
+    } catch (error: any) {
       console.error(error);
-      alert('PDF oluşturulurken bir hata oluştu.');
+      alert(error?.message || 'PDF oluşturulurken bir hata oluştu.');
     } finally {
       setIsGenerating(false);
     }
@@ -232,8 +241,7 @@ export default function App() {
              template={activeTemplate} 
              onSave={(t) => {
                setActiveTemplate(t);
-               localStorage.setItem('dsdst_label_template', JSON.stringify(t));
-               alert('Tasarım kaydedildi!');
+               try { localStorage.setItem('dsdst_label_template', JSON.stringify(t)); } catch(e) { console.warn('localStorage write failed', e); }
              }}
              sampleProduct={activeProduct}
              settings={settings}

@@ -1,0 +1,54 @@
+import { ProductData, LabelSettings } from './types';
+
+export function replaceVariables(text: string, product: ProductData, settings?: LabelSettings): string {
+  if (!text) return '';
+  let result = text;
+
+  // ALL_INFO: full block (used for QR by default)
+  if (result.includes('{ALL_INFO}')) {
+    const allInfo = [
+      `SKU: ${product.sku || ''}`,
+      `URUN_KODU: ${product.urunKodu || ''}`,
+      `MALZEME: ${product.malzeme || ''}`,
+      `TIP: ${product.tip || ''}`,
+      `OLCU: ${product.olcu || ''}`,
+      `URUN_ADI: ${product.urunAdi || ''}`,
+      `LOT: ${product.partiLot || ''}`,
+      `PAKET_ICI_ADET: ${product.paketIciAdet || ''}`,
+      `PAKET_NO: ${product.paketNo || ''}`,
+      `URUN_AGIRLIGI: ${product.urunAgirligi || ''}`,
+      `KUTU_AGIRLIGI: ${product.kutuAgirligi || ''}`,
+    ].join('\n');
+    result = result.replace(/{ALL_INFO}/g, allInfo);
+  }
+
+  result = result.replace(/{SKU}/g, product.sku || '');
+  result = result.replace(/{Urun_kodu}/g, product.urunKodu || '');
+  result = result.replace(/{Malzeme}/g, product.malzeme || '');
+  result = result.replace(/{Tip}/g, product.tip || '');
+  result = result.replace(/{Olcu}/g, product.olcu || '');
+  result = result.replace(/{Urun_adi}/g, product.urunAdi || '');
+  result = result.replace(/{Parti_Lot}/g, product.partiLot || '');
+  result = result.replace(/{Parti_lot}/g, product.partiLot || '');
+  result = result.replace(/{Paket_ici_adet}/g, product.paketIciAdet || '');
+  result = result.replace(/{Paket_no}/g, product.paketNo || '');
+  result = result.replace(/{Toplam_paket}/g, product.toplamPaket || '');
+  result = result.replace(/{Lokasyon}/g, product.lokasyon || '');
+  result = result.replace(/{Not}/g, product.not || '');
+  result = result.replace(/{Urun_agirligi}/g, product.urunAgirligi || '');
+  result = result.replace(/{Kutu_agirligi}/g, product.kutuAgirligi || '');
+
+  return result;
+}
+
+/** QR value resolution centralized (preview, designer and PDF share this) */
+export function resolveQrValue(rawValue: string, product: ProductData, settings: LabelSettings): string {
+  if (settings.qrType === 'custom_url') {
+    return (settings.qrCustomUrl || '').replace(/{SKU}/g, product.sku || '').replace(/{Urun_kodu}/g, product.urunKodu || '');
+  }
+  if (settings.qrType === 'sku_only') {
+    return product.sku || '';
+  }
+  // all_info — use the raw value (which often is {ALL_INFO})
+  return replaceVariables(rawValue || '{ALL_INFO}', product, settings) || (product.sku || 'N/A');
+}
