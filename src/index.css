@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@media print {
+  #app-layout {
+    display: none !important;
+  }
+  
+  #print-view {
+    display: block !important;
+    width: 100mm;
+  }
+
+  @page {
+    size: 100mm 100mm;
+    margin: 0;
+  }
+
+  .print-label {
+    page-break-after: always;
+    page-break-inside: avoid;
+    break-after: page;
+    width: 100mm !important;
+    height: 100mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden;
+  }
+}
