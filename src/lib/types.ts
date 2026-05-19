@@ -47,6 +47,9 @@ export interface LabelElement {
   visible?: boolean;       // default true
   locked?: boolean;        // default false
   showBarcodeText?: boolean; // for barcode: render value below
+  selectable?: boolean;    // default true — false = pure visual guide, never selectable
+  fill?: boolean;          // box: when true, interior is clickable; when false, only border is
+  fillColor?: string;      // optional box fill color
 }
 
 export interface LabelTemplate {

@@ -12,6 +12,7 @@ import {
 import { cn, safeUUID } from '../lib/utils';
 import { TEMPLATES } from '../lib/templates';
 import { generatePdfFromDesign } from '../lib/pdfGenerator';
+import { findElementAtPoint, rectsIntersect } from '../lib/hitTesting';
 
 interface Props {
   template: LabelTemplate;
@@ -41,6 +42,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
   const [snap, setSnap] = useState(true);
   const [gridStep, setGridStep] = useState(1); // mm
   const [drag, setDrag] = useState<DragMode>({ kind: 'none' });
+  const [strictHitTest, setStrictHitTest] = useState(true);
   const [clipboard, setClipboard] = useState<LabelElement[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -230,27 +232,14 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
     return { x: (e.clientX - rect.left) / zoom, y: (e.clientY - rect.top) / zoom };
   };
 
-  const hitTestElement = (x: number, y: number): LabelElement | null => {
-    // Topmost first (we render last on top)
-    for (let i = template.elements.length - 1; i >= 0; i--) {
-      const el = template.elements[i];
-      if (el.visible === false) continue;
-      const w = Math.max(el.width, 2); // small lines still selectable
-      const h = Math.max(el.height, 2);
-      if (x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + h) return el;
-    }
-    return null;
-  };
-
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     if (editingTextId) return; // let inline edit take focus
     const target = e.target as HTMLElement;
     const handleAttr = target.closest('[data-handle]')?.getAttribute('data-handle') as ResizeHandle | null;
-    const elIdAttr = target.closest('[data-element-id]')?.getAttribute('data-element-id');
 
     const { x, y } = canvasMouse(e);
 
-    // Resize handle (single-selection only)
+    // Resize handle is the only DOM lookup we still trust (it's a small, opt-in target)
     if (handleAttr && selectedIds.length === 1) {
       const id = selectedIds[0];
       const el = template.elements.find(x => x.id === id);
@@ -267,31 +256,31 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
       }
     }
 
-    // Clicked on an element body
-    if (elIdAttr) {
-      const el = template.elements.find(x => x.id === elIdAttr);
-      if (!el) return;
+    // Geometric hit test — never trust DOM bubbling for element selection,
+    // otherwise a hollow frame box would steal clicks from its interior.
+    const hit = findElementAtPoint(template.elements, { x, y }, strictHitTest);
+
+    if (hit) {
       let nextSelected = selectedIds;
       if (e.shiftKey || e.metaKey || e.ctrlKey) {
-        nextSelected = selectedIds.includes(el.id)
-          ? selectedIds.filter(id => id !== el.id)
-          : [...selectedIds, el.id];
-      } else if (!selectedIds.includes(el.id)) {
-        nextSelected = [el.id];
+        nextSelected = selectedIds.includes(hit.id)
+          ? selectedIds.filter(id => id !== hit.id)
+          : [...selectedIds, hit.id];
+      } else if (!selectedIds.includes(hit.id)) {
+        nextSelected = [hit.id];
       }
       setSelectedIds(nextSelected);
-      // If clicked element is locked, do not start move
-      if (template.elements.find(e2 => e2.id === el.id)?.locked) return;
+      if (hit.locked) { e.preventDefault(); return; }
       const origPositions: Record<string, { x: number; y: number }> = {};
       template.elements.forEach(e2 => {
-        if (nextSelected.includes(e2.id)) origPositions[e2.id] = { x: e2.x, y: e2.y };
+        if (nextSelected.includes(e2.id) && !e2.locked) origPositions[e2.id] = { x: e2.x, y: e2.y };
       });
       setDrag({ kind: 'move', startMouse: { x, y }, origPositions });
       e.preventDefault();
       return;
     }
 
-    // Empty canvas: start marquee selection
+    // Truly empty space — clear and start marquee
     if (!(e.shiftKey || e.metaKey || e.ctrlKey)) setSelectedIds([]);
     setDrag({ kind: 'marquee', startX: x, startY: y, currentX: x, currentY: y });
     e.preventDefault();
@@ -352,9 +341,10 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
       const x2 = Math.max(drag.startX, drag.currentX);
       const y1 = Math.min(drag.startY, drag.currentY);
       const y2 = Math.max(drag.startY, drag.currentY);
+      const marquee = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
       const hits = template.elements
-        .filter(el => el.visible !== false)
-        .filter(el => el.x + el.width >= x1 && el.x <= x2 && el.y + el.height >= y1 && el.y <= y2)
+        .filter(el => el.visible !== false && el.selectable !== false)
+        .filter(el => rectsIntersect(marquee, el))
         .map(el => el.id);
       setSelectedIds(prev => {
         // If marquee was started without modifier, prev is already []
@@ -389,7 +379,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
 
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
       if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
-      if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelectedIds(template.elements.map(el => el.id)); return; }
+      if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); setSelectedIds(template.elements.filter(el => el.selectable !== false).map(el => el.id)); return; }
       if (mod && e.key.toLowerCase() === 'c') { e.preventDefault(); copySelected(); return; }
       if (mod && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteClipboard(); return; }
       if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelected(); return; }
@@ -731,6 +721,10 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
               </select>
             </label>
             <span className="text-slate-300">|</span>
+            <label className="flex items-center gap-1.5 cursor-pointer" title="Açıkken: boş kutu içindeki boşluğa tıklamak kutuyu seçmez, sadece kenarlık seçilebilir. Kapalıyken klasik kutu seçimi.">
+              <input type="checkbox" checked={strictHitTest} onChange={e => setStrictHitTest(e.target.checked)} /> Sıkı seçim
+            </label>
+            <span className="text-slate-300">|</span>
             <span className="text-slate-600">{selectedIds.length === 0 ? 'Seçim yok' : `${selectedIds.length} seçili`}</span>
           </div>
 
@@ -755,9 +749,8 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
               }}
               onMouseDown={handleCanvasMouseDown}
               onDoubleClick={(e) => {
-                const elId = (e.target as HTMLElement).closest('[data-element-id]')?.getAttribute('data-element-id');
-                if (!elId) return;
-                const el = template.elements.find(x => x.id === elId);
+                const { x, y } = canvasMouse(e);
+                const el = findElementAtPoint(template.elements, { x, y }, strictHitTest);
                 if (el && (el.type === 'text' || el.type === 'logo') && !el.locked) {
                   setEditingTextId(el.id);
                 }
@@ -772,14 +765,17 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
                 border: '1px dashed rgba(239, 68, 68, 0.4)',
               }} />
 
-              {/* Elements */}
+              {/* Elements — bodies are pointer-events:none so the canvas owns
+                  hit testing. Only the resize handles (children of the selected
+                  element) opt back in via pointer-events:auto. */}
               {template.elements.map(el => {
                 const selected = selectedIds.includes(el.id);
+                const isEditing = editingTextId === el.id;
                 if (el.visible === false) {
                   return (
                     <div key={el.id}
                       data-element-id={el.id}
-                      style={{ position: 'absolute', left: el.x * zoom, top: el.y * zoom, width: el.width * zoom, height: el.height * zoom, border: '1px dashed #94a3b8', opacity: 0.35, pointerEvents: 'auto', cursor: 'pointer' }}
+                      style={{ position: 'absolute', left: el.x * zoom, top: el.y * zoom, width: el.width * zoom, height: el.height * zoom, border: '1px dashed #94a3b8', opacity: 0.35, pointerEvents: 'none' }}
                     />
                   );
                 }
@@ -793,18 +789,18 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
                       top: el.y * zoom,
                       width: el.width * zoom,
                       height: el.height * zoom,
-                      cursor: el.locked ? 'not-allowed' : (selected ? 'move' : 'pointer'),
                       outline: selected ? '2px solid #4f46e5' : 'none',
                       outlineOffset: '0px',
                       boxShadow: selected ? '0 0 0 1px rgba(79,70,229,0.2)' : 'none',
                       background: 'transparent',
+                      pointerEvents: isEditing ? 'auto' : 'none',
                     }}
                     title={el.locked ? 'Kilitli' : undefined}
                   >
                     {renderElementBody(el)}
                     {/* Resize handles only when single-selected and unlocked */}
                     {selected && selectedIds.length === 1 && !el.locked && (['nw','n','ne','e','se','s','sw','w'] as ResizeHandle[]).map(h => (
-                      <div key={h} data-handle={h} style={handleStyleFor(h)} />
+                      <div key={h} data-handle={h} style={{ ...handleStyleFor(h), pointerEvents: 'auto' }} />
                     ))}
                   </div>
                 );
@@ -1023,6 +1019,13 @@ function SingleElementPanel({ el, onUpdate }: SingleElementPanelProps) {
 
       {(el.type === 'box' || el.type === 'line') && (
         <NumberField label="Çizgi Kalınlığı (mm)" value={el.borderWidth || 0.4} onChange={v => onUpdate(el.id, { borderWidth: v }, true)} step={0.1} />
+      )}
+
+      {el.type === 'box' && (
+        <label className="flex items-center gap-2 text-sm" title="Açıkken iç alana tıklamak kutuyu seçer. Kapalıyken sadece kenarlık tıklanabilir.">
+          <input type="checkbox" checked={el.fill === true} onChange={e => onUpdate(el.id, { fill: e.target.checked }, true)} />
+          Dolgu (içine tıklanabilir)
+        </label>
       )}
 
       {el.type === 'barcode' && (

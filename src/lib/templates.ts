@@ -12,8 +12,8 @@ export const DEFAULT_TEMPLATE: LabelTemplate = {
   width: 100,
   height: 100,
   elements: [
-    // Outer border
-    { id: 'border', type: 'box', x: 2, y: 2, width: 96, height: 96, value: '', borderWidth: 0.4 },
+    // Outer border — visual frame only, never selectable from the canvas
+    { id: 'border', type: 'box', x: 2, y: 2, width: 96, height: 96, value: '', borderWidth: 0.4, selectable: false, locked: true },
 
     // Header
     { id: 'h_title', type: 'text', x: 4, y: 4, width: 68, height: 7, value: 'DSDST DEPO KABUL', fontSize: 5, fontWeight: 'black' },
