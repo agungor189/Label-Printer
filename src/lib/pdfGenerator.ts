@@ -180,8 +180,14 @@ export async function generatePdfFromDesign(
     throw new Error('Yazdırılacak ürün yok. Önce veri yükleyin veya örnek veriyi seçin.');
   }
 
+  // jsPDF normalises [w, h] to [shorter, longer] internally, so the
+  // orientation flag is what actually controls whether the long edge
+  // ends up horizontal or vertical. Pick it from the template aspect
+  // so a 150×100 design comes out landscape, 100×150 portrait, etc.
+  const orientation: 'landscape' | 'portrait' = template.width > template.height ? 'landscape' : 'portrait';
+
   const pdf = new jsPDF({
-    orientation: 'portrait',
+    orientation,
     unit: 'mm',
     format: [template.width, template.height],
     compress: true,
@@ -192,7 +198,7 @@ export async function generatePdfFromDesign(
 
   for (let i = 0; i < products.length; i++) {
     if (i > 0) {
-      pdf.addPage([template.width, template.height], 'portrait');
+      pdf.addPage([template.width, template.height], orientation);
     }
     const product = products[i];
     // Draw in stable order (boxes/lines first, then content)
