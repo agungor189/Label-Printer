@@ -843,7 +843,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
         </div>
 
         {/* RIGHT PANEL */}
-        <div className="w-80 bg-white flex flex-col h-full z-10 border-l border-slate-200 shrink-0 shadow-sm overflow-y-auto">
+        <div className="w-80 bg-white flex flex-col h-full z-10 border-l border-slate-200 shrink-0 shadow-sm overflow-hidden">
           <RightPanel
             selectedElements={selectedElements}
             template={template}
@@ -886,76 +886,95 @@ interface RightPanelProps {
   setSnap: (v: boolean) => void;
 }
 
-function RightPanel({ selectedElements, template, onUpdate, sampleProduct, settings }: RightPanelProps) {
-  if (selectedElements.length === 0) {
-    return (
-      <div className="p-5">
-        <h3 className="text-sm font-bold text-slate-800 mb-3">Etiket Ayarları</h3>
-        <div className="text-xs text-slate-500 space-y-2 bg-slate-50 border border-slate-200 rounded p-3">
-          <div><span className="font-semibold text-slate-600">Etiket Ölçüsü:</span> {template.width} x {template.height} mm</div>
-          <div><span className="font-semibold text-slate-600">Güvenli Alan:</span> 3 mm</div>
-          <div><span className="font-semibold text-slate-600">Obje Sayısı:</span> {template.elements.length}</div>
-          <div><span className="font-semibold text-slate-600">Şablon:</span> {template.name}</div>
-        </div>
-
-        <div className="mt-6">
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Canlı Önizleme</h3>
-          <div className="bg-slate-50 rounded p-3 flex items-center justify-center">
-            <LabelPreviewRenderer
-              template={template}
-              product={sampleProduct}
-              settings={settings}
-              widthPx={280}
-              className="shadow border border-slate-300"
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded p-3">
-          <strong className="text-amber-700">İpucu:</strong> Canvas üzerine tıklayıp sürükleyerek birden fazla obje seçebilirsiniz. Shift / Cmd+Click ile çoklu seçim.
-        </div>
-      </div>
-    );
-  }
-
-  if (selectedElements.length > 1) {
-    return (
-      <div className="p-5">
-        <h3 className="text-sm font-bold text-slate-800 mb-1">{selectedElements.length} obje seçili</h3>
-        <p className="text-xs text-slate-500 mb-4">Grup işlemleri toolbardan yapılabilir. Çoklu seçili objeler birlikte taşınır, kopyalanır, silinir.</p>
-
-        <ul className="text-xs space-y-1 max-h-48 overflow-y-auto bg-slate-50 border border-slate-200 rounded p-2">
-          {selectedElements.map(el => (
-            <li key={el.id} className="flex items-center justify-between">
-              <span className="text-slate-700">{el.type} — {el.value?.slice(0, 18)}</span>
-              <span className="text-slate-400 tabular-nums">{el.x.toFixed(1)},{el.y.toFixed(1)}</span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-6">
-          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Canlı Önizleme</h3>
-          <div className="bg-slate-50 rounded p-3 flex items-center justify-center">
-            <LabelPreviewRenderer
-              template={template}
-              product={sampleProduct}
-              settings={settings}
-              widthPx={280}
-              className="shadow border border-slate-300"
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const el = selectedElements[0];
-
+/**
+ * RightPanel — always shows the live preview at the top (a true minified
+ * copy of the canvas, driven by the same template JSON), and a
+ * context-sensitive properties section below that scrolls independently.
+ * Selecting an object never hides the preview.
+ */
+const RightPanel = React.memo(function RightPanel({ selectedElements, template, onUpdate, sampleProduct, settings }: RightPanelProps) {
   return (
-    <div className="p-5 space-y-4">
+    <>
+      {/* Top: live preview — always rendered, fixed size */}
+      <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Canlı Önizleme</h3>
+          <span className="text-[10px] text-slate-400">{template.width}×{template.height} mm</span>
+        </div>
+        <div className="flex items-center justify-center bg-white rounded border border-slate-300 p-2">
+          <LabelPreviewRenderer
+            template={template}
+            product={sampleProduct}
+            settings={settings}
+            widthPx={272}
+          />
+        </div>
+        <p className="text-[10px] text-slate-400 mt-2 leading-snug">
+          Tasarımın gerçek çıktıya yakın küçük görünümü. Canvas, önizleme ve PDF aynı veri üzerinden çalışır.
+        </p>
+      </div>
+
+      {/* Bottom: scrollable properties / settings */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {selectedElements.length === 0 && (
+          <NoSelectionPanel template={template} />
+        )}
+        {selectedElements.length > 1 && (
+          <MultiSelectPanel selectedElements={selectedElements} />
+        )}
+        {selectedElements.length === 1 && (
+          <SingleElementPanel el={selectedElements[0]} onUpdate={onUpdate} />
+        )}
+      </div>
+    </>
+  );
+});
+
+function NoSelectionPanel({ template }: { template: LabelTemplate }) {
+  return (
+    <div className="p-4">
+      <h3 className="text-sm font-bold text-slate-800 mb-3">Etiket Ayarları</h3>
+      <div className="text-xs text-slate-500 space-y-2 bg-slate-50 border border-slate-200 rounded p-3">
+        <div><span className="font-semibold text-slate-600">Etiket Ölçüsü:</span> {template.width} × {template.height} mm</div>
+        <div><span className="font-semibold text-slate-600">Güvenli Alan:</span> 3 mm</div>
+        <div><span className="font-semibold text-slate-600">Obje Sayısı:</span> {template.elements.length}</div>
+        <div><span className="font-semibold text-slate-600">Şablon:</span> {template.name}</div>
+      </div>
+      <div className="mt-4 text-xs text-slate-500 bg-amber-50 border border-amber-200 rounded p-3">
+        <strong className="text-amber-700">İpucu:</strong> Canvas üzerine tıklayıp sürükleyerek birden fazla obje seçebilirsiniz. Shift / Cmd+Click ile çoklu seçim.
+      </div>
+    </div>
+  );
+}
+
+function MultiSelectPanel({ selectedElements }: { selectedElements: LabelElement[] }) {
+  return (
+    <div className="p-4">
+      <h3 className="text-sm font-bold text-slate-800 mb-1">{selectedElements.length} obje seçili</h3>
+      <p className="text-xs text-slate-500 mb-3">Hizalama, sil, kopyala, kilitle ve grupla işlemleri üst toolbardan yapılabilir. Seçili objeler birlikte taşınır.</p>
+      <ul className="text-xs space-y-1 bg-slate-50 border border-slate-200 rounded p-2">
+        {selectedElements.map(el => (
+          <li key={el.id} className="flex items-center justify-between">
+            <span className="text-slate-700 truncate">{el.type} — {(el.value || '').slice(0, 22) || '—'}</span>
+            <span className="text-slate-400 tabular-nums shrink-0 ml-2">{el.x.toFixed(1)},{el.y.toFixed(1)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+interface SingleElementPanelProps {
+  el: LabelElement;
+  onUpdate: (id: string, updates: Partial<LabelElement>, commit?: boolean) => void;
+}
+
+function SingleElementPanel({ el, onUpdate }: SingleElementPanelProps) {
+  return (
+    <div className="p-4 space-y-4">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 className="font-bold text-slate-800 text-base capitalize">{el.type} Ayarları</h3>
-        <div className="flex items-center gap-1 text-xs">
+        <h3 className="font-bold text-slate-800 text-sm capitalize">{el.type} Ayarları</h3>
+        <div className="flex items-center gap-1">
           <button onClick={() => onUpdate(el.id, { visible: el.visible === false ? true : false }, true)} className="p-1.5 hover:bg-slate-100 rounded" title="Göster/Gizle">
             {el.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
@@ -979,7 +998,7 @@ function RightPanel({ selectedElements, template, onUpdate, sampleProduct, setti
             value={el.value}
             onChange={e => onUpdate(el.id, { value: e.target.value }, false)}
             onBlur={e => onUpdate(el.id, { value: e.target.value }, true)}
-            className="w-full text-sm p-2.5 border border-slate-300 rounded focus:border-indigo-500 outline-none resize-y min-h-[64px]"
+            className="w-full text-sm p-2.5 border border-slate-300 rounded focus:border-indigo-500 outline-none resize-y min-h-[60px]"
           />
         </div>
       )}
