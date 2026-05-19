@@ -1,4 +1,5 @@
 import type jsPDF from 'jspdf';
+import { activePdfFont } from './pdfFont';
 
 export const MM_TO_PT = 2.83464567;
 
@@ -125,7 +126,7 @@ export function drawTextInBox(pdf: jsPDF, o: DrawTextOpts): { fontMm: number; li
   const w = Math.max(0.1, o.width - 2 * padding);
   const h = Math.max(0.1, o.height - 2 * padding);
 
-  pdf.setFont('helvetica', o.bold ? 'bold' : 'normal');
+  pdf.setFont(activePdfFont(), o.bold ? 'bold' : 'normal');
   // Defensive: reset any leftover spacing modes that might leak between draws
   try { pdf.setCharSpace(0); } catch {}
 

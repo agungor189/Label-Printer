@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { LabelElement, LabelTemplate, ProductData, LabelSettings } from './types';
 import { replaceVariables, resolveQrValue } from './labelRenderer';
 import { drawTextInBox } from './pdfText';
+import { preloadPdfFonts, registerPdfFonts } from './pdfFont';
 
 function drawText(pdf: jsPDF, el: LabelElement, product: ProductData, settings: LabelSettings) {
   const text = replaceVariables(el.value || '', product, settings);
@@ -180,6 +181,15 @@ export async function generatePdfFromDesign(
     throw new Error('Yazdırılacak ürün yok. Önce veri yükleyin veya örnek veriyi seçin.');
   }
 
+  // Fetch the Unicode font once (cached after the first call) so that
+  // Turkish characters render correctly instead of the broken WinAnsi
+  // fallback shipped with built-in Helvetica.
+  try {
+    await preloadPdfFonts();
+  } catch (e) {
+    console.warn('PDF font preload failed; Turkish chars may render incorrectly.', e);
+  }
+
   // jsPDF normalises [w, h] to [shorter, longer] internally, so the
   // orientation flag is what actually controls whether the long edge
   // ends up horizontal or vertical. Pick it from the template aspect
@@ -192,6 +202,7 @@ export async function generatePdfFromDesign(
     format: [template.width, template.height],
     compress: true,
   });
+  registerPdfFonts(pdf);
 
   const visibleElements = template.elements.filter(e => e.visible !== false);
   let totalRendered = 0;
