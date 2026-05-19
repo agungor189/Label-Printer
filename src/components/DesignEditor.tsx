@@ -9,7 +9,7 @@ import {
   AlignStartHorizontal, AlignEndHorizontal, AlignStartVertical, AlignEndVertical,
   Group, Ungroup, ClipboardCopy, ClipboardPaste, Layers,
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, safeUUID } from '../lib/utils';
 import { TEMPLATES } from '../lib/templates';
 import { generatePdfFromDesign } from '../lib/pdfGenerator';
 
@@ -100,7 +100,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
   // ---- Element ops ----
   const addElement = (partial: Partial<LabelElement> & { type: LabelElement['type'] }) => {
     const base: LabelElement = {
-      id: crypto.randomUUID(),
+      id: safeUUID(),
       type: partial.type,
       x: 10,
       y: 10,
@@ -147,7 +147,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
   const duplicateSelected = () => {
     if (selectedIds.length === 0) return;
     const originals = template.elements.filter(el => selectedIds.includes(el.id));
-    const copies = originals.map(o => ({ ...o, id: crypto.randomUUID(), x: Math.min(template.width - o.width, o.x + 3), y: Math.min(template.height - o.height, o.y + 3) }));
+    const copies = originals.map(o => ({ ...o, id: safeUUID(), x: Math.min(template.width - o.width, o.x + 3), y: Math.min(template.height - o.height, o.y + 3) }));
     pushHistory({ ...template, elements: [...template.elements, ...copies] });
     setSelectedIds(copies.map(c => c.id));
   };
@@ -160,7 +160,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
 
   const pasteClipboard = () => {
     if (clipboard.length === 0) return;
-    const pasted = clipboard.map(el => ({ ...el, id: crypto.randomUUID(), x: Math.min(template.width - el.width, el.x + 3), y: Math.min(template.height - el.height, el.y + 3) }));
+    const pasted = clipboard.map(el => ({ ...el, id: safeUUID(), x: Math.min(template.width - el.width, el.x + 3), y: Math.min(template.height - el.height, el.y + 3) }));
     pushHistory({ ...template, elements: [...template.elements, ...pasted] });
     setSelectedIds(pasted.map(p => p.id));
   };

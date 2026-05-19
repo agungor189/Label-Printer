@@ -1,4 +1,5 @@
 import { ProductData } from './types';
+import { safeUUID } from './utils';
 
 export const EXPECTED_COLUMNS = [
   { key: 'sku', label: 'SKU', required: true, aliases: ['sku', 'stok kodu', 'stokkodu', 'ürün sku', 'urun sku', 'barkod degeri'] },
@@ -65,7 +66,7 @@ export function processMappedData(rawRows: any[], mapping: Record<string, string
     }
 
     const product: ProductData = {
-      id: crypto.randomUUID(),
+      id: safeUUID(),
       sku,
       urunKodu: String(row[mapping.urunKodu] || '').trim(),
       malzeme: String(row[mapping.malzeme] || '').trim(),
@@ -101,7 +102,7 @@ export function generatePrintableList(validProducts: ProductData[]): ProductData
         for (let p = 0; p < targetPrintQty; p++) {
           result.push({
             ...item,
-            id: crypto.randomUUID(),
+            id: safeUUID(),
             paketNo: `${paket} / ${targetTotal}`
           });
         }
@@ -110,7 +111,7 @@ export function generatePrintableList(validProducts: ProductData[]): ProductData
       for (let p = 0; p < targetPrintQty; p++) {
         result.push({
           ...item,
-          id: crypto.randomUUID(),
+          id: safeUUID(),
           paketNo: item.paketNo || (targetTotal > 1 ? `1 / ${targetTotal}` : '')
         });
       }

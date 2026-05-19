@@ -8,7 +8,7 @@ import { autoMapColumns, processMappedData, generatePrintableList, ProcessedRow 
 import { ProductData, LabelSettings, LabelTemplate } from './lib/types';
 import { DEFAULT_TEMPLATE } from './lib/templates';
 import { generatePdfFromDesign } from './lib/pdfGenerator';
-import { cn } from './lib/utils';
+import { cn, safeUUID } from './lib/utils';
 import { DashboardView } from './components/DashboardView';
 import { DesignEditor } from './components/DesignEditor';
 import { PreviewExportView } from './components/PreviewExportView';
@@ -24,7 +24,7 @@ const DEFAULT_SETTINGS: LabelSettings = {
 };
 
 const DEFAULT_PRODUCT: ProductData = {
-  id: crypto.randomUUID(),
+  id: safeUUID(),
   sku: "DSDST-AL-RD-1IN-90D",
   urunKodu: "AL-125-B",
   malzeme: "Alüminyum Alaşım",

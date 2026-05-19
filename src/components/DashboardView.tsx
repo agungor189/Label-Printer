@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ProductData } from '../lib/types';
 import { FileImage, Trash2, Plus, Download } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, safeUUID } from '../lib/utils';
 
 interface Props {
   data: ProductData[];
@@ -24,7 +24,7 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const newProduct: ProductData = {
-      id: crypto.randomUUID(),
+      id: safeUUID(),
       sku: formData.get('sku') as string,
       urunKodu: formData.get('urunKodu') as string,
       malzeme: formData.get('malzeme') as string,
