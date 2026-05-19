@@ -1,5 +1,8 @@
 import { ProductData, LabelSettings } from './types';
 
+export const QR_QUIET_ZONE_MODULES = 4;
+export const QR_PREVIEW_QUIET_ZONE_RATIO = 0.08;
+
 export function replaceVariables(text: string, product: ProductData, settings?: LabelSettings): string {
   if (!text) return '';
   let result = text;
@@ -43,14 +46,27 @@ export function replaceVariables(text: string, product: ProductData, settings?: 
   return result;
 }
 
+function normalizeQrValue(value: string, fallback: string): string {
+  const normalized = value.replace(/\r\n/g, '\n').trim();
+  return normalized || fallback.trim() || 'N/A';
+}
+
+function replaceQrUrlVariables(template: string, product: ProductData): string {
+  const sku = encodeURIComponent(product.sku || '');
+  const urunKodu = encodeURIComponent(product.urunKodu || '');
+  return template.replace(/{SKU}/g, sku).replace(/{Urun_kodu}/g, urunKodu);
+}
+
 /** QR value resolution centralized (preview, designer and PDF share this) */
 export function resolveQrValue(rawValue: string, product: ProductData, settings: LabelSettings): string {
+  const fallback = product.sku || product.urunKodu || '';
+
   if (settings.qrType === 'custom_url') {
-    return (settings.qrCustomUrl || '').replace(/{SKU}/g, product.sku || '').replace(/{Urun_kodu}/g, product.urunKodu || '');
+    return normalizeQrValue(replaceQrUrlVariables(settings.qrCustomUrl || '', product), fallback);
   }
   if (settings.qrType === 'sku_only') {
-    return product.sku || '';
+    return normalizeQrValue(product.sku || '', fallback);
   }
   // all_info — use the raw value (which often is {ALL_INFO})
-  return replaceVariables(rawValue || '{ALL_INFO}', product, settings) || (product.sku || 'N/A');
+  return normalizeQrValue(replaceVariables(rawValue || '{ALL_INFO}', product, settings), fallback);
 }

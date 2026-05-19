@@ -3,7 +3,7 @@ import jsPDF from 'jspdf';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import { LabelElement, LabelTemplate, ProductData, LabelSettings } from './types';
-import { replaceVariables, resolveQrValue } from './labelRenderer';
+import { QR_QUIET_ZONE_MODULES, replaceVariables, resolveQrValue } from './labelRenderer';
 import { drawTextInBox } from './pdfText';
 import { preloadPdfFonts, registerPdfFonts } from './pdfFont';
 
@@ -110,7 +110,7 @@ async function drawQr(pdf: jsPDF, el: LabelElement, product: ProductData, settin
   const sidePx = Math.max(128, Math.round(Math.min(el.width, el.height) * 12));
   const dataUrl = await QRCode.toDataURL(value, {
     errorCorrectionLevel: 'M',
-    margin: 0,
+    margin: QR_QUIET_ZONE_MODULES,
     width: sidePx,
     color: { dark: '#000000', light: '#ffffff' },
   });

@@ -15,7 +15,7 @@ import { PreviewExportView } from './components/PreviewExportView';
 import { SettingsView } from './components/SettingsView';
 
 const DEFAULT_SETTINGS: LabelSettings = {
-  qrType: 'all_info',
+  qrType: 'custom_url',
   qrCustomUrl: 'https://panel.dsdstserver.online/products/{SKU}',
   showDsdstHeader: true,
   showLokasyon: true,

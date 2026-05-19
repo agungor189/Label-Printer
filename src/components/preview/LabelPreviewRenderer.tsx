@@ -2,7 +2,7 @@ import React from 'react';
 import Barcode from 'react-barcode';
 import QRCode from 'react-qr-code';
 import { LabelElement, LabelTemplate, ProductData, LabelSettings } from '../../lib/types';
-import { replaceVariables, resolveQrValue } from '../../lib/labelRenderer';
+import { QR_PREVIEW_QUIET_ZONE_RATIO, replaceVariables, resolveQrValue } from '../../lib/labelRenderer';
 
 interface Props {
   template: LabelTemplate;
@@ -150,9 +150,20 @@ function ObjectRenderer({ el, product, settings, scale, printMm }: ObjectProps) 
     );
     const offsetX = ((printMm ? el.width : el.width * scale) - side) / 2;
     const offsetY = ((printMm ? el.height : el.height * scale) - side) / 2;
+    const quietZone = Math.max(printMm ? 1 : 2, side * QR_PREVIEW_QUIET_ZONE_RATIO);
+    const sizeUnit = (value: number) => `${value}${printMm ? 'mm' : 'px'}`;
     return (
       <div style={{ ...base }}>
-        <div style={{ position: 'absolute', left: offsetX, top: offsetY, width: side, height: side, background: 'white' }}>
+        <div style={{
+          position: 'absolute',
+          left: sizeUnit(offsetX),
+          top: sizeUnit(offsetY),
+          width: sizeUnit(side),
+          height: sizeUnit(side),
+          padding: sizeUnit(quietZone),
+          background: 'white',
+          boxSizing: 'border-box',
+        }}>
           <QRCode
             value={value}
             size={256}
@@ -197,4 +208,3 @@ function BarcodeSafe({ value, heightPx, showText }: { value: string; heightPx: n
  * on unrelated parent state changes (search input, selection toggles, etc.).
  */
 export const LabelPreviewRenderer = React.memo(LabelPreviewRendererBase);
-
