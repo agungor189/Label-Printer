@@ -25,7 +25,7 @@ interface Props {
  * absolute px coordinates derived from mm × scale. The same JSON that
  * drives the canvas and the PDF drives this view — no hard-coded layout.
  */
-export function LabelPreviewRenderer({ template, product, settings, widthPx = 300, printMm = false, className, style }: Props) {
+function LabelPreviewRendererBase({ template, product, settings, widthPx = 300, printMm = false, className, style }: Props) {
   const scale = printMm ? 1 : widthPx / template.width;
   const containerStyle: React.CSSProperties = printMm
     ? { width: `${template.width}mm`, height: `${template.height}mm`, position: 'relative', background: 'white', overflow: 'hidden', boxSizing: 'border-box' }
@@ -186,3 +186,10 @@ function BarcodeSafe({ value, heightPx, showText }: { value: string; heightPx: n
     return <div style={{ fontSize: 10, color: '#888' }}>BARCODE: {value}</div>;
   }
 }
+
+/**
+ * Memoised so list views with many thumbnails don't re-render every card
+ * on unrelated parent state changes (search input, selection toggles, etc.).
+ */
+export const LabelPreviewRenderer = React.memo(LabelPreviewRendererBase);
+

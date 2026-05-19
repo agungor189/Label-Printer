@@ -233,7 +233,17 @@ export default function App() {
         )}
 
         {activeView === 'dashboard' && (
-          <DashboardView data={data} setData={setData} printableData={printableData} handleManualAdd={handleManualAdd} loadExample={loadExample} />
+          <DashboardView
+            data={data}
+            setData={setData}
+            printableData={printableData}
+            handleManualAdd={handleManualAdd}
+            loadExample={loadExample}
+            template={activeTemplate}
+            settings={settings}
+            isGenerating={isGenerating}
+            setIsGenerating={setIsGenerating}
+          />
         )}
 
         {activeView === 'design' && (
