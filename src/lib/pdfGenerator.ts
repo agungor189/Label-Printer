@@ -4,48 +4,22 @@ import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import { LabelElement, LabelTemplate, ProductData, LabelSettings } from './types';
 import { replaceVariables, resolveQrValue } from './labelRenderer';
-
-// mm <-> pt conversion (1mm = 2.83465pt). jsPDF default fontSize is pt.
-const MM_TO_PT = 2.83464567;
-
-function setTextStyle(pdf: jsPDF, el: LabelElement) {
-  const weight = el.fontWeight === 'bold' || el.fontWeight === 'black' ? 'bold' : 'normal';
-  pdf.setFont('helvetica', weight);
-  const ptSize = Math.max(4, (el.fontSize || 3) * MM_TO_PT);
-  pdf.setFontSize(ptSize);
-  pdf.setTextColor(0, 0, 0);
-}
+import { drawTextInBox } from './pdfText';
 
 function drawText(pdf: jsPDF, el: LabelElement, product: ProductData, settings: LabelSettings) {
   const text = replaceVariables(el.value || '', product, settings);
   if (!text.trim()) return;
-
-  setTextStyle(pdf, el);
-  const align = el.textAlign || 'left';
-
-  // Wrap into the box width
-  const lines = pdf.splitTextToSize(text, Math.max(1, el.width));
-  const fontMm = el.fontSize || 3;
-  const lineHeight = fontMm * 1.15;
-  const maxLines = Math.max(1, Math.floor(el.height / lineHeight));
-  const visibleLines: string[] = lines.slice(0, maxLines);
-
-  // Ascent baseline correction so the first line top aligns with el.y
-  const ascent = fontMm * 0.85;
-
-  let xStart = el.x;
-  let optAlign: 'left' | 'center' | 'right' = 'left';
-  if (align === 'center') {
-    xStart = el.x + el.width / 2;
-    optAlign = 'center';
-  } else if (align === 'right') {
-    xStart = el.x + el.width;
-    optAlign = 'right';
-  }
-
-  visibleLines.forEach((line: string, i: number) => {
-    const y = el.y + ascent + i * lineHeight;
-    pdf.text(line, xStart, y, { align: optAlign, baseline: 'alphabetic' });
+  drawTextInBox(pdf, {
+    text,
+    x: el.x,
+    y: el.y,
+    width: el.width,
+    height: el.height,
+    fontMm: el.fontSize || 3,
+    bold: el.fontWeight === 'bold' || el.fontWeight === 'black',
+    align: el.textAlign || 'left',
+    autoShrink: true,
+    vAlign: 'top',
   });
 }
 
@@ -72,26 +46,47 @@ function drawLine(pdf: jsPDF, el: LabelElement) {
 
 function drawBarcode(pdf: jsPDF, el: LabelElement, product: ProductData, settings: LabelSettings) {
   const value = replaceVariables(el.value || '', product, settings) || product.sku || ' ';
-  // Render JsBarcode onto an offscreen canvas
-  const canvas = document.createElement('canvas');
   const showText = el.showBarcodeText !== false;
+
+  // Reserve a small strip at the bottom for the readable value so the bitmap
+  // bars don't have to share their rect with text. Drawing the text natively
+  // (instead of baking it into the PNG) prevents horizontal stretching when
+  // the canvas aspect ratio differs from the label rect aspect ratio.
+  const textHeightMm = showText ? Math.min(3.4, Math.max(2.4, el.height * 0.22)) : 0;
+  const textGapMm = showText ? 0.4 : 0;
+  const barsHeightMm = Math.max(2, el.height - textHeightMm - textGapMm);
+
+  const canvas = document.createElement('canvas');
   try {
     JsBarcode(canvas, value, {
       format: 'CODE128',
       width: 2,
-      height: Math.max(40, el.height * 8),
-      displayValue: showText,
-      fontSize: 18,
+      height: Math.max(40, barsHeightMm * 8),
+      displayValue: false,
       margin: 0,
-      textMargin: 2,
-      font: 'monospace',
     });
   } catch (e) {
     console.warn('Barcode render failed for value:', value, e);
     return;
   }
   const dataUrl = canvas.toDataURL('image/png');
-  pdf.addImage(dataUrl, 'PNG', el.x, el.y, el.width, el.height, undefined, 'FAST');
+  pdf.addImage(dataUrl, 'PNG', el.x, el.y, el.width, barsHeightMm, undefined, 'FAST');
+
+  if (showText) {
+    drawTextInBox(pdf, {
+      text: value,
+      x: el.x,
+      y: el.y + barsHeightMm + textGapMm,
+      width: el.width,
+      height: textHeightMm,
+      fontMm: Math.min(3, textHeightMm * 0.95),
+      bold: false,
+      align: 'center',
+      autoShrink: true,
+      minFontMm: 1.8,
+      vAlign: 'middle',
+    });
+  }
 }
 
 async function drawQr(pdf: jsPDF, el: LabelElement, product: ProductData, settings: LabelSettings) {
