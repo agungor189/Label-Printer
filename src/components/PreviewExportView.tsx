@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ProductData, LabelSettings, LabelTemplate } from '../lib/types';
-import { DynamicThermalLabel } from './DynamicThermalLabel';
+import { LabelPreviewRenderer } from './preview/LabelPreviewRenderer';
 import { FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -50,8 +50,8 @@ export function PreviewExportView({ printableData, template, settings, printPdf,
 
           {activeProduct ? (
             <div className="flex flex-col items-center mt-12">
-              <div className="bg-white p-0 shadow border border-slate-300">
-                <DynamicThermalLabel product={activeProduct} settings={settings} template={template} />
+              <div className="bg-white shadow border border-slate-300">
+                <LabelPreviewRenderer template={template} product={activeProduct} settings={settings} widthPx={400} />
               </div>
               
               <div className="mt-8 flex items-center justify-between w-[380px] bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LabelTemplate, LabelElement, ProductData, LabelSettings } from '../lib/types';
-import { DynamicThermalLabel } from './DynamicThermalLabel';
+import { LabelPreviewRenderer } from './preview/LabelPreviewRenderer';
 import {
   Save, Trash2, Layout, Type, QrCode, Baseline as Barcode, Square,
   ArrowLeft, ZoomIn, ZoomOut, Maximize, Copy, AlignLeft,
@@ -900,10 +900,14 @@ function RightPanel({ selectedElements, template, onUpdate, sampleProduct, setti
 
         <div className="mt-6">
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Canlı Önizleme</h3>
-          <div className="border border-slate-200 bg-white rounded overflow-hidden flex items-center justify-center" style={{ height: 280 }}>
-            <div className="origin-top-left" style={{ transform: 'scale(0.7)', transformOrigin: 'top left', width: '100mm', height: '100mm' }}>
-              <DynamicThermalLabel product={sampleProduct} template={template} settings={settings} />
-            </div>
+          <div className="bg-slate-50 rounded p-3 flex items-center justify-center">
+            <LabelPreviewRenderer
+              template={template}
+              product={sampleProduct}
+              settings={settings}
+              widthPx={280}
+              className="shadow border border-slate-300"
+            />
           </div>
         </div>
 
@@ -931,10 +935,14 @@ function RightPanel({ selectedElements, template, onUpdate, sampleProduct, setti
 
         <div className="mt-6">
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Canlı Önizleme</h3>
-          <div className="border border-slate-200 bg-white rounded overflow-hidden flex items-center justify-center" style={{ height: 280 }}>
-            <div className="origin-top-left" style={{ transform: 'scale(0.7)', transformOrigin: 'top left', width: '100mm', height: '100mm' }}>
-              <DynamicThermalLabel product={sampleProduct} template={template} settings={settings} />
-            </div>
+          <div className="bg-slate-50 rounded p-3 flex items-center justify-center">
+            <LabelPreviewRenderer
+              template={template}
+              product={sampleProduct}
+              settings={settings}
+              widthPx={280}
+              className="shadow border border-slate-300"
+            />
           </div>
         </div>
       </div>
