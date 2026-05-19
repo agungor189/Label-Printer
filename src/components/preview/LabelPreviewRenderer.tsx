@@ -77,7 +77,12 @@ function ObjectRenderer({ el, product, settings, scale, printMm }: ObjectProps) 
 
   if (el.type === 'box') {
     const bw = Math.max(printMm ? 0.05 : 1, (el.borderWidth || 0.4) * (printMm ? 1 : scale));
-    return <div style={{ ...base, border: `${bw}${printMm ? 'mm' : 'px'} solid #000` }} />;
+    const filled = el.fill === true || !!el.fillColor;
+    return <div style={{
+      ...base,
+      border: `${bw}${printMm ? 'mm' : 'px'} solid #000`,
+      background: filled ? (el.fillColor || '#0f172a') : 'transparent',
+    }} />;
   }
 
   if (el.type === 'line') {
@@ -104,7 +109,7 @@ function ObjectRenderer({ el, product, settings, scale, printMm }: ObjectProps) 
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: justify,
-        color: '#0f172a',
+        color: el.textColor || '#0f172a',
       }}>
         <div style={{
           fontSize: fontPx,

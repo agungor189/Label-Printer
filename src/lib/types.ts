@@ -15,6 +15,7 @@ export interface ProductData {
   tip?: string;
   urunAgirligi?: string;
   kutuAgirligi?: string;
+  stokSayisi?: string;
 }
 
 export type QRConfigType = 'all_info' | 'sku_only' | 'custom_url';
@@ -49,7 +50,8 @@ export interface LabelElement {
   showBarcodeText?: boolean; // for barcode: render value below
   selectable?: boolean;    // default true — false = pure visual guide, never selectable
   fill?: boolean;          // box: when true, interior is clickable; when false, only border is
-  fillColor?: string;      // optional box fill color
+  fillColor?: string;      // optional box fill color (e.g. '#0f172a' for inverse SKU tab)
+  textColor?: string;      // override default black text (e.g. '#ffffff' on a dark filled box)
 }
 
 export interface LabelTemplate {

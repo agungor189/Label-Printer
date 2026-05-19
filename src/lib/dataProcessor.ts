@@ -13,7 +13,11 @@ export const EXPECTED_COLUMNS = [
   { key: 'toplamPaket', label: 'Toplam Paket', required: false, aliases: ['toplam_paket', 'toplam paket', 'paket sayısı', 'paket sayisi', 'total package'] },
   { key: 'lokasyon', label: 'Lokasyon', required: false, aliases: ['lokasyon', 'depo lokasyon', 'raf', 'location'] },
   { key: 'not', label: 'Not', required: false, aliases: ['not', 'note'] },
-  { key: 'printQty', label: 'Baskı Adedi (print_qty)', required: false, aliases: ['print_qty', 'baskı adedi', 'baski adedi', 'kaç adet basılacak', 'kac adet basilacak'] }
+  { key: 'printQty', label: 'Baskı Adedi (print_qty)', required: false, aliases: ['print_qty', 'baskı adedi', 'baski adedi', 'kaç adet basılacak', 'kac adet basilacak'] },
+  { key: 'tip', label: 'Tip', required: false, aliases: ['tip', 'type', 'ürün tipi', 'urun tipi'] },
+  { key: 'urunAgirligi', label: 'Ürün Ağırlığı', required: false, aliases: ['urun_agirligi', 'ürün ağırlığı', 'urun agirligi', 'product weight', 'agirlik', 'ağırlık'] },
+  { key: 'kutuAgirligi', label: 'Kutu Ağırlığı', required: false, aliases: ['kutu_agirligi', 'kutu ağırlığı', 'kutu agirligi', 'box weight', 'paket ağırlığı', 'paket agirligi'] },
+  { key: 'stokSayisi', label: 'Stok Sayısı', required: false, aliases: ['stok_sayisi', 'stok sayısı', 'stok sayisi', 'stock count', 'toplam stok'] }
 ];
 
 export function autoMapColumns(headers: string[]): Record<string, string> {
@@ -78,7 +82,11 @@ export function processMappedData(rawRows: any[], mapping: Record<string, string
       toplamPaket: toplamPaket.toString(),
       lokasyon: String(row[mapping.lokasyon] || '').trim(),
       not: String(row[mapping.not] || '').trim(),
-      printQty
+      printQty,
+      tip: String(row[mapping.tip] || '').trim(),
+      urunAgirligi: String(row[mapping.urunAgirligi] || '').trim(),
+      kutuAgirligi: String(row[mapping.kutuAgirligi] || '').trim(),
+      stokSayisi: String(row[mapping.stokSayisi] || '').trim(),
     };
 
     return {

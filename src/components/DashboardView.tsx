@@ -132,6 +132,7 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
       tip: (formData.get('tip') as string) || '',
       urunAgirligi: (formData.get('urunAgirligi') as string) || '',
       kutuAgirligi: (formData.get('kutuAgirligi') as string) || '',
+      stokSayisi: (formData.get('stokSayisi') as string) || '',
     };
     handleManualAdd(newProduct);
     (e.target as HTMLFormElement).reset();
@@ -190,6 +191,7 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
                 <ManualField name="toplamPaket" label="Toplam Paket" type="number" />
                 <ManualField name="urunAgirligi" label="Ürün Ağırlığı" />
                 <ManualField name="kutuAgirligi" label="Kutu Ağırlığı" />
+                <ManualField name="stokSayisi" label="Stok Sayısı" />
               </div>
               <button type="submit" className="w-full mt-1 flex justify-center items-center gap-2 py-2.5 bg-slate-900 text-white rounded-md font-semibold text-sm hover:bg-slate-800 transition-colors">
                 <Plus size={16} /> Listeye Ekle
@@ -476,6 +478,7 @@ function DetailModal({ item, idx, template, settings, onClose, isGenerating, set
             <FieldRow label="Paket İçi Adet" value={item.paketIciAdet} />
             <FieldRow label="Ürün Ağırlığı" value={item.urunAgirligi} />
             <FieldRow label="Kutu Ağırlığı" value={item.kutuAgirligi} />
+            <FieldRow label="Stok Sayısı" value={item.stokSayisi} />
             <FieldRow label="Lokasyon" value={item.lokasyon} />
             <FieldRow label="Not" value={item.not} colSpan />
           </dl>

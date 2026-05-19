@@ -20,6 +20,7 @@ function drawText(pdf: jsPDF, el: LabelElement, product: ProductData, settings: 
     align: el.textAlign || 'left',
     autoShrink: true,
     vAlign: 'top',
+    textColor: el.textColor,
   });
 }
 
@@ -27,7 +28,20 @@ function drawBox(pdf: jsPDF, el: LabelElement) {
   const lw = Math.max(0.05, el.borderWidth ?? 0.3);
   pdf.setDrawColor(0, 0, 0);
   pdf.setLineWidth(lw);
-  pdf.rect(el.x, el.y, el.width, el.height, 'S');
+  if (el.fill === true || el.fillColor) {
+    const c = hexToRgb(el.fillColor || '#0f172a');
+    pdf.setFillColor(c.r, c.g, c.b);
+    pdf.rect(el.x, el.y, el.width, el.height, 'FD');
+  } else {
+    pdf.rect(el.x, el.y, el.width, el.height, 'S');
+  }
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const num = parseInt(full, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
 }
 
 function drawLine(pdf: jsPDF, el: LabelElement) {

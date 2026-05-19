@@ -101,6 +101,16 @@ export interface DrawTextOpts {
   /** vertical alignment within the box */
   vAlign?: 'top' | 'middle' | 'bottom';
   padding?: number;   // mm
+  /** hex like '#ffffff'; defaults to black */
+  textColor?: string;
+}
+
+function applyTextColor(pdf: jsPDF, hex?: string) {
+  if (!hex) { pdf.setTextColor(0, 0, 0); return; }
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  pdf.setTextColor((n >> 16) & 255, (n >> 8) & 255, n & 255);
 }
 
 /**
@@ -131,7 +141,7 @@ export function drawTextInBox(pdf: jsPDF, o: DrawTextOpts): { fontMm: number; li
       });
 
   pdf.setFontSize(fit.fontMm * MM_TO_PT);
-  pdf.setTextColor(0, 0, 0);
+  applyTextColor(pdf, o.textColor);
 
   const lineHeight = fit.fontMm * (o.lineHeightFactor ?? 1.15);
   const totalHeight = fit.lines.length * lineHeight;

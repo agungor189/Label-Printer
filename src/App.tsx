@@ -37,9 +37,10 @@ const DEFAULT_PRODUCT: ProductData = {
   lokasyon: "A-1-P3",
   not: "Gelen ürün ana paket",
   printQty: 1,
-  tip: "Dirsek",
-  urunAgirligi: "12 g",
-  kutuAgirligi: "2.4 kg"
+  tip: "Boru",
+  urunAgirligi: "185",
+  kutuAgirligi: "38.2",
+  stokSayisi: "128"
 };
 
 export type AppView = 'dashboard' | 'mapping' | 'validation' | 'design' | 'preview' | 'settings';
@@ -52,7 +53,7 @@ export default function App() {
   
   const [activeTemplate, setActiveTemplate] = useState<LabelTemplate>(() => {
     try {
-      const saved = localStorage.getItem('dsdst_label_template');
+      const saved = localStorage.getItem('dsdst_label_template_v2');
       if (saved) return JSON.parse(saved);
     } catch(e) {}
     return DEFAULT_TEMPLATE;
@@ -71,53 +72,31 @@ export default function App() {
   const printableData = useMemo(() => generatePrintableList(data), [data]);
 
   const loadExample = () => {
-    const csvSettings = Papa.unparse({
-      fields: Object.keys(DEFAULT_PRODUCT).filter(k => k !== 'id'),
-      data: [
-        [
-          DEFAULT_PRODUCT.sku,
-          DEFAULT_PRODUCT.urunKodu,
-          DEFAULT_PRODUCT.malzeme,
-          DEFAULT_PRODUCT.olcu,
-          "Boru Dirsek Eki (Kısa)",
-          DEFAULT_PRODUCT.partiLot,
-          DEFAULT_PRODUCT.paketIciAdet,
-          "",
-          "1",
-          DEFAULT_PRODUCT.lokasyon,
-          "Kısa örnek adı",
-          "1"
-        ],
-        [
-          "DSDST-LONG-SKU-992-XYZ",
-          "XX-12",
-          "Çelik",
-          "2 İnç",
-          "Çok Çok Uzun Bir Ürün Adı İçeren Örnek Satır - Bu etiket dışına taşmamalı ve sığdırılmalı 2 satıra göre",
-          "LOT-TEST",
-          "10",
-          "",
-          "4",
-          "C-2",
-          "Büyük paketler",
-          "1"
-        ],
-        [
-          "DSDST-MULTI-PRINT",
-          "ZZ-1",
-          "Plastik",
-          "50mm",
-          "Çoklu Baskı Denemesi",
-          "LOT-99",
-          "100",
-          "1 / 1",
-          "1",
-          "D-1",
-          "printQty = 3 olacak",
-          "3"
-        ]
-      ]
-    });
+    const fields = ['sku','urunKodu','urunAdi','malzeme','tip','olcu','partiLot','paketIciAdet','paketNo','toplamPaket','urunAgirligi','kutuAgirligi','stokSayisi','lokasyon','not','printQty'];
+    const rows = [
+      {
+        sku: DEFAULT_PRODUCT.sku, urunKodu: DEFAULT_PRODUCT.urunKodu, urunAdi: '90° Dirsek',
+        malzeme: DEFAULT_PRODUCT.malzeme, tip: 'Boru', olcu: DEFAULT_PRODUCT.olcu,
+        partiLot: '2026-5', paketIciAdet: '200', paketNo: '', toplamPaket: '4',
+        urunAgirligi: '185', kutuAgirligi: '38.2', stokSayisi: '128',
+        lokasyon: 'A-1-P3', not: 'Örnek depo kabul', printQty: 1
+      },
+      {
+        sku: 'DSDST-CL-90D-2IN', urunKodu: 'CL-220-X', urunAdi: 'Çelik Dirsek 90°',
+        malzeme: 'Çelik', tip: 'Boru', olcu: '2 İnç / 60.3 mm',
+        partiLot: '2026-5', paketIciAdet: '50', paketNo: '', toplamPaket: '2',
+        urunAgirligi: '420', kutuAgirligi: '22.5', stokSayisi: '100',
+        lokasyon: 'B-2', not: '', printQty: 1
+      },
+      {
+        sku: 'DSDST-PL-T-25MM', urunKodu: 'PL-T-25', urunAdi: 'Plastik T Bağlantı 25mm',
+        malzeme: 'Plastik', tip: 'T Bağlantı', olcu: '25 mm',
+        partiLot: '2026-5', paketIciAdet: '500', paketNo: '1 / 1', toplamPaket: '1',
+        urunAgirligi: '12', kutuAgirligi: '6.5', stokSayisi: '500',
+        lokasyon: 'D-1', not: '3 kopya basılır', printQty: 3
+      }
+    ];
+    const csvSettings = Papa.unparse({ fields, data: rows });
     
     const blob = new Blob(["\ufeff" + csvSettings], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -251,7 +230,7 @@ export default function App() {
              template={activeTemplate} 
              onSave={(t) => {
                setActiveTemplate(t);
-               try { localStorage.setItem('dsdst_label_template', JSON.stringify(t)); } catch(e) { console.warn('localStorage write failed', e); }
+               try { localStorage.setItem('dsdst_label_template_v2', JSON.stringify(t)); } catch(e) { console.warn('localStorage write failed', e); }
              }}
              sampleProduct={activeProduct}
              settings={settings}

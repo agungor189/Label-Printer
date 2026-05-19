@@ -18,6 +18,7 @@ export function replaceVariables(text: string, product: ProductData, settings?: 
       `PAKET_NO: ${product.paketNo || ''}`,
       `URUN_AGIRLIGI: ${product.urunAgirligi || ''}`,
       `KUTU_AGIRLIGI: ${product.kutuAgirligi || ''}`,
+      `STOK_SAYISI: ${product.stokSayisi || ''}`,
     ].join('\n');
     result = result.replace(/{ALL_INFO}/g, allInfo);
   }
@@ -37,6 +38,7 @@ export function replaceVariables(text: string, product: ProductData, settings?: 
   result = result.replace(/{Not}/g, product.not || '');
   result = result.replace(/{Urun_agirligi}/g, product.urunAgirligi || '');
   result = result.replace(/{Kutu_agirligi}/g, product.kutuAgirligi || '');
+  result = result.replace(/{Stok_sayisi}/g, product.stokSayisi || '');
 
   return result;
 }
