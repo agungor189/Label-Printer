@@ -25,7 +25,7 @@ export function SettingsView({ settings, setSettings }: Props) {
                   onChange={() => setSettings({...settings, qrType: 'all_info'})}
                   className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                 />
-                <span className="font-medium">Tam Ürün Bilgisi</span>
+                <span className="font-medium">Tam Ürün Bilgisi (Önerilen)</span>
               </label>
               <p className="text-xs text-slate-500 ml-7 -mt-2">QR kod okuttuğunda ürünün tüm verileri (SKU, İsim, Lokasyon, vb.) okunur.</p>
 
@@ -51,7 +51,7 @@ export function SettingsView({ settings, setSettings }: Props) {
                     onChange={() => setSettings({...settings, qrType: 'custom_url'})}
                     className="text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                   />
-                  <span className="font-medium">Panel URL Şablonu (Önerilen)</span>
+                  <span className="font-medium">Özel URL Şablonu</span>
                 </label>
                 {settings.qrType === 'custom_url' && (
                   <div className="ml-7 mt-2">
