@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Papa from 'papaparse';
 import { Download, Upload, Printer, List, LayoutTemplate, Settings, Eye, FileText } from 'lucide-react';
 import { ColumnMapper } from './components/ColumnMapper';
@@ -13,6 +13,7 @@ import { DashboardView } from './components/DashboardView';
 import { DesignEditor } from './components/DesignEditor';
 import { PreviewExportView } from './components/PreviewExportView';
 import { SettingsView } from './components/SettingsView';
+import { loadPersistentState, savePersistentState, type SaveStatus } from './lib/persistence';
 
 const DEFAULT_SETTINGS: LabelSettings = {
   qrType: 'all_info',
@@ -50,6 +51,9 @@ export default function App() {
   
   const [data, setData] = useState<ProductData[]>([]);
   const [settings, setSettings] = useState<LabelSettings>(DEFAULT_SETTINGS);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('loading');
+  const hasLoadedPersistentState = useRef(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [activeTemplate, setActiveTemplate] = useState<LabelTemplate>(() => {
     try {
@@ -70,6 +74,60 @@ export default function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const printableData = useMemo(() => generatePrintableList(data), [data]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrate = async () => {
+      const persisted = await loadPersistentState();
+      if (cancelled) return;
+
+      if (persisted) {
+        setData(persisted.products);
+        if (persisted.settings) {
+          setSettings({ ...DEFAULT_SETTINGS, ...persisted.settings });
+        }
+        if (persisted.template) {
+          setActiveTemplate(persisted.template);
+          try {
+            localStorage.setItem('dsdst_label_template_v2', JSON.stringify(persisted.template));
+          } catch (e) {
+            console.warn('localStorage write failed', e);
+          }
+        }
+        setSaveStatus('saved');
+      } else {
+        setSaveStatus('offline');
+      }
+
+      hasLoadedPersistentState.current = true;
+    };
+
+    hydrate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedPersistentState.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+
+    setSaveStatus('saving');
+    saveTimer.current = setTimeout(async () => {
+      const ok = await savePersistentState({
+        products: data,
+        settings,
+        template: activeTemplate,
+      });
+      setSaveStatus(ok ? 'saved' : 'offline');
+    }, 700);
+
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [data, settings, activeTemplate]);
 
   const loadExample = () => {
     const fields = ['sku','urunKodu','urunAdi','malzeme','tip','olcu','partiLot','paketIciAdet','paketNo','toplamPaket','urunAgirligi','kutuAgirligi','stokSayisi','lokasyon','not','printQty'];
@@ -194,6 +252,7 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-3">
+           <SaveStatusBadge status={saveStatus} />
            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-500 transition-colors shadow-sm">
              <Upload size={16} /> Yeni Liste Yükle
            </button>
@@ -254,5 +313,28 @@ export default function App() {
       </main>
 
     </div>
+  );
+}
+
+function SaveStatusBadge({ status }: { status: SaveStatus }) {
+  const labels: Record<SaveStatus, string> = {
+    loading: 'Kayıt yükleniyor',
+    saving: 'Kaydediliyor',
+    saved: 'Kaydedildi',
+    offline: 'Yerel mod',
+    error: 'Kayıt hatası',
+  };
+  const colors: Record<SaveStatus, string> = {
+    loading: 'bg-slate-800 text-slate-300 border-slate-700',
+    saving: 'bg-amber-500/15 text-amber-100 border-amber-400/30',
+    saved: 'bg-emerald-500/15 text-emerald-100 border-emerald-400/30',
+    offline: 'bg-slate-800 text-slate-300 border-slate-700',
+    error: 'bg-red-500/15 text-red-100 border-red-400/30',
+  };
+
+  return (
+    <span className={cn('hidden md:inline-flex items-center rounded border px-2.5 py-1 text-xs font-semibold', colors[status])}>
+      {labels[status]}
+    </span>
   );
 }

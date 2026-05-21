@@ -19,6 +19,18 @@ interface Props {
 
 type ViewMode = 'compact' | 'labelled' | 'grid';
 
+interface FieldFilters {
+  urunAdi: string;
+  malzeme: string;
+  tip: string;
+}
+
+const EMPTY_FILTERS: FieldFilters = {
+  urunAdi: '',
+  malzeme: '',
+  tip: '',
+};
+
 interface DecoratedItem {
   item: ProductData;
   key: string;     // stable per occurrence (id-idx) — same product can appear multiple times
@@ -35,23 +47,42 @@ function decorate(items: ProductData[]): DecoratedItem[] {
   });
 }
 
+function uniqueFieldValues(items: DecoratedItem[], getValue: (item: ProductData) => string | undefined): string[] {
+  return Array.from(new Set(items.map(({ item }) => (getValue(item) || '').trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'tr'));
+}
+
 export function DashboardView({ data, setData, printableData, handleManualAdd, loadExample, template, settings, isGenerating, setIsGenerating }: Props) {
   const [activeTab, setActiveTab] = useState<'list' | 'manual'>('list');
   const [viewMode, setViewMode] = useState<ViewMode>('labelled');
   const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<FieldFilters>(EMPTY_FILTERS);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailKey, setDetailKey] = useState<string | null>(null);
 
   const decorated = useMemo(() => decorate(printableData), [printableData]);
 
+  const filterOptions = useMemo(() => ({
+    malzeme: uniqueFieldValues(decorated, item => item.malzeme),
+    tip: uniqueFieldValues(decorated, item => item.tip),
+  }), [decorated]);
+
+  const hasActiveFilters = Boolean(search.trim() || filters.urunAdi.trim() || filters.malzeme || filters.tip);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return decorated;
-    return decorated.filter(({ item }) =>
-      [item.sku, item.urunAdi, item.urunKodu, item.partiLot, item.paketNo, item.malzeme, item.olcu]
-        .some(f => (f || '').toLowerCase().includes(q))
-    );
-  }, [decorated, search]);
+    const name = filters.urunAdi.trim().toLowerCase();
+
+    return decorated.filter(({ item }) => {
+      const matchesSearch = !q || [item.sku, item.urunAdi, item.urunKodu, item.partiLot, item.paketNo, item.malzeme, item.olcu, item.tip]
+        .some(f => (f || '').toLowerCase().includes(q));
+      const matchesName = !name || (item.urunAdi || '').toLowerCase().includes(name);
+      const matchesMaterial = !filters.malzeme || (item.malzeme || '').trim() === filters.malzeme;
+      const matchesType = !filters.tip || (item.tip || '').trim() === filters.tip;
+
+      return matchesSearch && matchesName && matchesMaterial && matchesType;
+    });
+  }, [decorated, search, filters]);
 
   const uniqueProductCount = useMemo(() => new Set(printableData.map(p => p.sku)).size, [printableData]);
 
@@ -72,6 +103,11 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
     const next = new Set(selected);
     next.has(key) ? next.delete(key) : next.add(key);
     setSelected(next);
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setFilters(EMPTY_FILTERS);
   };
 
   const clearData = () => {
@@ -241,6 +277,52 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
           </button>
         </div>
 
+        {printableData.length > 0 && (
+          <div className="px-4 py-3 border-b border-slate-200 bg-white flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Ürün Adı</label>
+              <input
+                type="text"
+                value={filters.urunAdi}
+                onChange={e => setFilters({ ...filters, urunAdi: e.target.value })}
+                placeholder="İsme göre filtrele"
+                className="text-sm px-3 py-2 border border-slate-300 rounded-md outline-none focus:border-indigo-500 w-48"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Malzeme</label>
+              <select
+                value={filters.malzeme}
+                onChange={e => setFilters({ ...filters, malzeme: e.target.value })}
+                className="text-sm px-3 py-2 border border-slate-300 rounded-md outline-none focus:border-indigo-500 w-44 bg-white"
+              >
+                <option value="">Tüm malzemeler</option>
+                {filterOptions.malzeme.map(value => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Tip</label>
+              <select
+                value={filters.tip}
+                onChange={e => setFilters({ ...filters, tip: e.target.value })}
+                className="text-sm px-3 py-2 border border-slate-300 rounded-md outline-none focus:border-indigo-500 w-40 bg-white"
+              >
+                <option value="">Tüm tipler</option>
+                {filterOptions.tip.map(value => <option key={value} value={value}>{value}</option>)}
+              </select>
+            </div>
+            <button
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              className="text-sm px-3 py-2 border border-slate-300 rounded-md text-slate-700 font-medium hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white flex items-center gap-1.5"
+            >
+              <X size={14} /> Temizle
+            </button>
+            <div className="flex-1" />
+            <span className="text-xs text-slate-500">{filtered.length} / {printableData.length} etiket gösteriliyor</span>
+          </div>
+        )}
+
         {/* Selection bar */}
         {printableData.length > 0 && (
           <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 flex items-center gap-3 text-xs">
@@ -267,7 +349,7 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
           {printableData.length === 0 ? (
             <EmptyState onLoadExample={loadExample} />
           ) : filtered.length === 0 ? (
-            <div className="text-center py-12 text-sm text-slate-500">"{search}" için sonuç yok.</div>
+            <div className="text-center py-12 text-sm text-slate-500">Seçili filtreler için sonuç yok.</div>
           ) : viewMode === 'compact' ? (
             <CompactList items={filtered} selected={selected} onToggle={toggleOne} onOpen={k => setDetailKey(k)} />
           ) : viewMode === 'labelled' ? (
@@ -341,6 +423,8 @@ function CompactList({ items, selected, onToggle, onOpen }: { items: DecoratedIt
             <th className="px-2 py-2 w-12">#</th>
             <th className="px-2 py-2 text-left">SKU</th>
             <th className="px-2 py-2 text-left">Ürün Adı</th>
+            <th className="px-2 py-2 text-left">Malzeme</th>
+            <th className="px-2 py-2 text-left">Tip</th>
             <th className="px-2 py-2 text-left">Paket</th>
             <th className="px-2 py-2 text-left">Lot</th>
             <th className="px-2 py-2 text-left">Adet</th>
@@ -355,6 +439,8 @@ function CompactList({ items, selected, onToggle, onOpen }: { items: DecoratedIt
               <td className="px-2 py-2 text-slate-400 tabular-nums">{idx}</td>
               <td className="px-2 py-2 font-mono font-semibold text-slate-900 truncate max-w-[200px]">{item.sku || '—'}</td>
               <td className="px-2 py-2 text-slate-600 truncate max-w-[260px]">{item.urunAdi || '—'} {warnings.length > 0 && <AlertTriangle size={12} className="inline text-amber-500 ml-1" />}</td>
+              <td className="px-2 py-2 text-slate-600 truncate max-w-[120px]">{item.malzeme || '—'}</td>
+              <td className="px-2 py-2 text-slate-600 truncate max-w-[110px]">{item.tip || '—'}</td>
               <td className="px-2 py-2 text-slate-600">{item.paketNo || '—'}{item.toplamPaket ? ` / ${item.toplamPaket}` : ''}</td>
               <td className="px-2 py-2 text-slate-600">{item.partiLot || '—'}</td>
               <td className="px-2 py-2 text-slate-600">{item.paketIciAdet || '—'}</td>
@@ -390,6 +476,8 @@ function LabelledList({ items, selected, onToggle, onOpen, template, settings }:
                   Paket {item.paketNo}{item.toplamPaket ? ` / ${item.toplamPaket}` : ''}
                 </span>
               )}
+              {item.malzeme && <span className="text-[10px] font-medium bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">{item.malzeme}</span>}
+              {item.tip && <span className="text-[10px] font-medium bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">{item.tip}</span>}
               {item.partiLot && <span className="text-[10px] font-medium bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">Lot {item.partiLot}</span>}
               {item.paketIciAdet && <span className="text-[10px] font-medium bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">{item.paketIciAdet} adet</span>}
               {warnings.length > 0 && <span className="text-[10px] font-medium bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-1"><AlertTriangle size={10} /> {warnings.join(' · ')}</span>}
@@ -426,7 +514,9 @@ function GridList({ items, selected, onToggle, onOpen, template, settings }: { i
           </div>
           <div className="mt-2 w-full text-center">
             <div className="text-[11px] font-mono font-semibold text-slate-900 truncate">{item.sku || '—'}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">{item.paketNo ? `Paket ${item.paketNo}${item.toplamPaket ? ` / ${item.toplamPaket}` : ''}` : '—'}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5 truncate">{item.urunAdi || 'İsimsiz ürün'}</div>
+            <div className="text-[10px] text-slate-500 truncate">{[item.malzeme, item.tip].filter(Boolean).join(' / ') || '—'}</div>
+            <div className="text-[10px] text-slate-500 truncate">{item.paketNo ? `Paket ${item.paketNo}${item.toplamPaket ? ` / ${item.toplamPaket}` : ''}` : '—'}</div>
           </div>
         </div>
       ))}

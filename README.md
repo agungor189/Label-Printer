@@ -37,6 +37,25 @@ npm run dev
 
 Uygulamanız varsayılan olarak `http://localhost:3000` adresinde çalışacaktır. Tarayıcınızdan bu adrese giderek uygulamayı kullanabilirsiniz.
 
+## 🖥️ Sunucuda Kalıcı Çalıştırma
+
+Uygulama artık tek Express server üzerinden hem arayüzü hem de kalıcı kayıt API'sini sunar. Ürün listesi, aktif tasarım ve ayarlar varsayılan olarak `data/app-state.json` dosyasına kaydedilir.
+
+```bash
+npm install
+npm run build
+npm start
+```
+
+PM2 ile arka planda kalıcı çalıştırmak için:
+
+```bash
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+Sunucuda farklı port veya kayıt klasörü kullanmak için `.env` dosyasında `PORT`, `DATA_DIR` ve `STATE_FILE` değerlerini ayarlayın. Kalıcı verinin korunması için `data/` klasörünü yedekleyin.
+
 ## 📝 Örnek CSV Formatı
 
 Uygulamanın içindeki menüden **"Örnek CSV İndir"** diyerek güncel şablon formatına ulaşabilirsiniz.
