@@ -4,6 +4,7 @@ import { FileImage, Trash2, Plus, Download, Search, Grid2X2, List as ListIcon, R
 import { cn, safeUUID } from '../lib/utils';
 import { LabelPreviewRenderer } from './preview/LabelPreviewRenderer';
 import { generatePdfFromDesign } from '../lib/pdfGenerator';
+import { downloadWarehousePackagesExport } from '../lib/warehouseExport';
 
 interface Props {
   data: ProductData[];
@@ -148,6 +149,21 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
     }
   };
 
+  const exportWarehouseJson = (items: ProductData[], mode: 'all' | 'selected' | 'filtered') => {
+    if (items.length === 0) return;
+    const payload = downloadWarehousePackagesExport(items, mode);
+    alert(`packages-export.json hazır — ${payload.summary.packageCount} paket.`);
+  };
+
+  const exportAllWarehouseJson = () => {
+    exportWarehouseJson(printableData, 'all');
+  };
+
+  const exportSelectedWarehouseJson = () => {
+    const selectedItems = decorated.filter(d => selected.has(d.key)).map(d => d.item);
+    exportWarehouseJson(selectedItems, 'selected');
+  };
+
   const onSubmitManual = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
@@ -275,6 +291,9 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
           <button onClick={exportAllPdf} disabled={printableData.length === 0 || isGenerating} className="text-sm px-3 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 disabled:opacity-40 flex items-center gap-2">
             <FileText size={14} /> {isGenerating ? 'PDF...' : 'Tümü PDF'}
           </button>
+          <button onClick={exportAllWarehouseJson} disabled={printableData.length === 0} className="text-sm px-3 py-2 bg-emerald-600 text-white rounded-md font-semibold hover:bg-emerald-700 disabled:opacity-40 flex items-center gap-2">
+            <Download size={14} /> Depo JSON
+          </button>
         </div>
 
         {printableData.length > 0 && (
@@ -338,6 +357,9 @@ export function DashboardView({ data, setData, printableData, handleManualAdd, l
                 <button onClick={() => setSelected(new Set())} className="text-slate-600 hover:text-slate-900">Temizle</button>
                 <button onClick={exportSelectedPdf} disabled={isGenerating} className="px-2.5 py-1 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 disabled:opacity-40 flex items-center gap-1.5">
                   <FileText size={12} /> Seçili PDF
+                </button>
+                <button onClick={exportSelectedWarehouseJson} className="px-2.5 py-1 bg-emerald-600 text-white rounded font-semibold hover:bg-emerald-700 flex items-center gap-1.5">
+                  <Download size={12} /> Seçili Depo JSON
                 </button>
               </>
             )}
