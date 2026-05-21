@@ -6,6 +6,7 @@ import { LabelElement, LabelTemplate, ProductData, LabelSettings } from './types
 import { QR_QUIET_ZONE_MODULES, replaceVariables, resolveQrValue } from './labelRenderer';
 import { drawTextInBox } from './pdfText';
 import { preloadPdfFonts, registerPdfFonts } from './pdfFont';
+import { sanitizeLabelTemplate } from './templateSafety';
 
 function drawText(pdf: jsPDF, el: LabelElement, product: ProductData, settings: LabelSettings) {
   const text = replaceVariables(el.value || '', product, settings);
@@ -152,6 +153,7 @@ export async function renderLabelObjectToPdf(
 }
 
 export function validateDesignBeforePdf(template: LabelTemplate): { ok: boolean; reason?: string } {
+  template = sanitizeLabelTemplate(template);
   if (!template) return { ok: false, reason: 'Tasarım yok.' };
   if (!template.elements || template.elements.length === 0) {
     return { ok: false, reason: 'Etikette hiç obje yok. PDF oluşturmak için önce tasarım ekleyin.' };
@@ -173,6 +175,7 @@ export async function generatePdfFromDesign(
   settings: LabelSettings,
   options: GeneratePdfOptions = {}
 ): Promise<{ pages: number; objectsRendered: number }> {
+  template = sanitizeLabelTemplate(template);
   const validation = validateDesignBeforePdf(template);
   if (!validation.ok) {
     throw new Error(validation.reason);

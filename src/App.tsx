@@ -14,6 +14,7 @@ import { DesignEditor } from './components/DesignEditor';
 import { PreviewExportView } from './components/PreviewExportView';
 import { SettingsView } from './components/SettingsView';
 import { loadPersistentState, saveLocalSnapshot, savePersistentState, type SaveStatus } from './lib/persistence';
+import { sanitizeLabelTemplate } from './lib/templateSafety';
 
 const DEFAULT_SETTINGS: LabelSettings = {
   qrType: 'all_info',
@@ -58,7 +59,7 @@ export default function App() {
   const [activeTemplate, setActiveTemplate] = useState<LabelTemplate>(() => {
     try {
       const saved = localStorage.getItem('dsdst_label_template_v2');
-      if (saved) return JSON.parse(saved);
+      if (saved) return sanitizeLabelTemplate(JSON.parse(saved));
     } catch(e) {}
     return DEFAULT_TEMPLATE;
   });
@@ -88,9 +89,10 @@ export default function App() {
           setSettings({ ...DEFAULT_SETTINGS, ...persisted.settings });
         }
         if (persisted.template) {
-          setActiveTemplate(persisted.template);
+          const template = sanitizeLabelTemplate(persisted.template);
+          setActiveTemplate(template);
           try {
-            localStorage.setItem('dsdst_label_template_v2', JSON.stringify(persisted.template));
+            localStorage.setItem('dsdst_label_template_v2', JSON.stringify(template));
           } catch (e) {
             console.warn('localStorage write failed', e);
           }
@@ -207,9 +209,10 @@ export default function App() {
   };
 
   const handleTemplateSave = useCallback((template: LabelTemplate) => {
-    setActiveTemplate(template);
+    const safeTemplate = sanitizeLabelTemplate(template);
+    setActiveTemplate(safeTemplate);
     try {
-      localStorage.setItem('dsdst_label_template_v2', JSON.stringify(template));
+      localStorage.setItem('dsdst_label_template_v2', JSON.stringify(safeTemplate));
     } catch(e) {
       console.warn('localStorage write failed', e);
     }

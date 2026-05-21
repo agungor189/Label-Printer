@@ -21,6 +21,12 @@ const emptyState = {
 
 app.use(express.json({ limit: '10mb' }));
 
+function normalizeTemplate(template) {
+  if (!template || typeof template !== 'object') return null;
+  if (!Array.isArray(template.elements)) return null;
+  return template;
+}
+
 async function readState() {
   try {
     const raw = await fs.readFile(stateFile, 'utf8');
@@ -29,6 +35,7 @@ async function readState() {
       ...emptyState,
       ...parsed,
       products: Array.isArray(parsed.products) ? parsed.products : [],
+      template: normalizeTemplate(parsed.template),
     };
   } catch (error) {
     if (error?.code !== 'ENOENT') {
@@ -44,7 +51,7 @@ async function writeState(nextState) {
     version: 1,
     products: Array.isArray(nextState.products) ? nextState.products : [],
     settings: nextState.settings && typeof nextState.settings === 'object' ? nextState.settings : null,
-    template: nextState.template && typeof nextState.template === 'object' ? nextState.template : null,
+    template: normalizeTemplate(nextState.template),
     updatedAt: new Date().toISOString(),
   };
   const tmpFile = `${stateFile}.tmp`;

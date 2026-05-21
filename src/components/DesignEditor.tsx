@@ -13,6 +13,7 @@ import { cn, safeUUID } from '../lib/utils';
 import { TEMPLATES } from '../lib/templates';
 import { generatePdfFromDesign } from '../lib/pdfGenerator';
 import { findElementAtPoint, rectsIntersect } from '../lib/hitTesting';
+import { sanitizeLabelTemplate } from '../lib/templateSafety';
 
 interface Props {
   template: LabelTemplate;
@@ -36,7 +37,8 @@ type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 interface Toast { id: number; type: 'success' | 'error' | 'info'; message: string; }
 
 export function DesignEditor({ template: initialTemplate, onSave, sampleProduct, settings, onBack }: Props) {
-  const [template, setTemplate] = useState<LabelTemplate>(initialTemplate);
+  const safeInitialTemplate = useMemo(() => sanitizeLabelTemplate(initialTemplate), [initialTemplate]);
+  const [template, setTemplate] = useState<LabelTemplate>(safeInitialTemplate);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [zoom, setZoom] = useState(4); // 1mm = N px
   const [snap, setSnap] = useState(true);
@@ -52,10 +54,11 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
   const didMountRef = useRef(false);
 
   // History
-  const [history, setHistory] = useState<LabelTemplate[]>([initialTemplate]);
+  const [history, setHistory] = useState<LabelTemplate[]>([safeInitialTemplate]);
   const [historyPointer, setHistoryPointer] = useState<number>(0);
 
   const pushHistory = useCallback((next: LabelTemplate) => {
+    next = sanitizeLabelTemplate(next, template);
     setHistory(h => {
       const trimmed = h.slice(0, historyPointer + 1);
       trimmed.push(next);
@@ -64,7 +67,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
       return trimmed;
     });
     setTemplate(next);
-  }, [historyPointer]);
+  }, [historyPointer, template]);
 
   const undo = useCallback(() => {
     if (historyPointer > 0) {

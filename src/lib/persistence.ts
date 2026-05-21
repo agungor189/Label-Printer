@@ -1,4 +1,5 @@
 import { LabelSettings, LabelTemplate, ProductData } from './types';
+import { sanitizeLabelTemplate } from './templateSafety';
 
 export interface PersistedAppState {
   version: number;
@@ -24,7 +25,7 @@ function normalizeState(state: any, source: PersistedAppState['source']): Persis
     version: Number(state.version) || 1,
     products: Array.isArray(state.products) ? state.products : [],
     settings: state.settings && typeof state.settings === 'object' ? state.settings : null,
-    template: state.template && typeof state.template === 'object' ? state.template : null,
+    template: state.template && typeof state.template === 'object' ? sanitizeLabelTemplate(state.template) : null,
     updatedAt: typeof state.updatedAt === 'string' ? state.updatedAt : null,
     source,
   };
@@ -50,7 +51,7 @@ function saveLocalState(state: Pick<PersistedAppState, 'products' | 'settings' |
       version: 1,
       products: state.products,
       settings: state.settings,
-      template: state.template,
+      template: state.template ? sanitizeLabelTemplate(state.template) : null,
       updatedAt: new Date().toISOString(),
     }));
     return true;
@@ -97,7 +98,7 @@ export async function savePersistentState(state: Pick<PersistedAppState, 'produc
         version: 1,
         products: state.products,
         settings: state.settings,
-        template: state.template,
+        template: state.template ? sanitizeLabelTemplate(state.template) : null,
       }),
     });
     return response.ok ? 'saved' : (savedLocal ? 'offline' : 'error');

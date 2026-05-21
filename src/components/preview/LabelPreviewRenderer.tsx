@@ -3,6 +3,7 @@ import Barcode from 'react-barcode';
 import QRCode from 'react-qr-code';
 import { LabelElement, LabelTemplate, ProductData, LabelSettings } from '../../lib/types';
 import { QR_PREVIEW_QUIET_ZONE_RATIO, replaceVariables, resolveQrValue } from '../../lib/labelRenderer';
+import { sanitizeLabelTemplate } from '../../lib/templateSafety';
 
 interface Props {
   template: LabelTemplate;
@@ -26,14 +27,15 @@ interface Props {
  * drives the canvas and the PDF drives this view — no hard-coded layout.
  */
 function LabelPreviewRendererBase({ template, product, settings, widthPx = 300, printMm = false, className, style }: Props) {
-  const scale = printMm ? 1 : widthPx / template.width;
+  const safeTemplate = sanitizeLabelTemplate(template);
+  const scale = printMm ? 1 : widthPx / safeTemplate.width;
   const containerStyle: React.CSSProperties = printMm
-    ? { width: `${template.width}mm`, height: `${template.height}mm`, position: 'relative', background: 'white', overflow: 'hidden', boxSizing: 'border-box' }
-    : { width: `${template.width * scale}px`, height: `${template.height * scale}px`, position: 'relative', background: 'white', overflow: 'hidden', boxSizing: 'border-box' };
+    ? { width: `${safeTemplate.width}mm`, height: `${safeTemplate.height}mm`, position: 'relative', background: 'white', overflow: 'hidden', boxSizing: 'border-box' }
+    : { width: `${safeTemplate.width * scale}px`, height: `${safeTemplate.height * scale}px`, position: 'relative', background: 'white', overflow: 'hidden', boxSizing: 'border-box' };
 
   return (
     <div className={className} style={{ ...containerStyle, ...style }}>
-      {template.elements.map(el => (
+      {safeTemplate.elements.map(el => (
         <ObjectRenderer
           key={el.id}
           el={el}
