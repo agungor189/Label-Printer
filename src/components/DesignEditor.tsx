@@ -49,6 +49,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  const didMountRef = useRef(false);
 
   // History
   const [history, setHistory] = useState<LabelTemplate[]>([initialTemplate]);
@@ -367,6 +368,19 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
   }, [drag.kind, handleWindowMouseMove, handleWindowMouseUp]);
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      onSave(template);
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [template, onSave]);
 
   // ---- Keyboard shortcuts ----
   useEffect(() => {

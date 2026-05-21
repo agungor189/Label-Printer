@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import Papa from 'papaparse';
 import { Download, Upload, Printer, List, LayoutTemplate, Settings, Eye, FileText } from 'lucide-react';
 import { ColumnMapper } from './components/ColumnMapper';
@@ -13,7 +13,7 @@ import { DashboardView } from './components/DashboardView';
 import { DesignEditor } from './components/DesignEditor';
 import { PreviewExportView } from './components/PreviewExportView';
 import { SettingsView } from './components/SettingsView';
-import { loadPersistentState, savePersistentState, type SaveStatus } from './lib/persistence';
+import { loadPersistentState, saveLocalSnapshot, savePersistentState, type SaveStatus } from './lib/persistence';
 
 const DEFAULT_SETTINGS: LabelSettings = {
   qrType: 'all_info',
@@ -95,7 +95,7 @@ export default function App() {
             console.warn('localStorage write failed', e);
           }
         }
-        setSaveStatus('saved');
+        setSaveStatus(persisted.source === 'local' ? 'offline' : 'saved');
       } else {
         setSaveStatus('offline');
       }
@@ -115,13 +115,19 @@ export default function App() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     setSaveStatus('saving');
+    saveLocalSnapshot({
+      products: data,
+      settings,
+      template: activeTemplate,
+    });
+
     saveTimer.current = setTimeout(async () => {
-      const ok = await savePersistentState({
+      const status = await savePersistentState({
         products: data,
         settings,
         template: activeTemplate,
       });
-      setSaveStatus(ok ? 'saved' : 'offline');
+      setSaveStatus(status);
     }, 700);
 
     return () => {
@@ -199,6 +205,15 @@ export default function App() {
   const handleManualAdd = (newProduct: ProductData) => {
     setData(prev => [newProduct, ...prev]);
   };
+
+  const handleTemplateSave = useCallback((template: LabelTemplate) => {
+    setActiveTemplate(template);
+    try {
+      localStorage.setItem('dsdst_label_template_v2', JSON.stringify(template));
+    } catch(e) {
+      console.warn('localStorage write failed', e);
+    }
+  }, []);
 
   const printPdf = async () => {
     if (printableData.length === 0) {
@@ -285,15 +300,12 @@ export default function App() {
         )}
 
         {activeView === 'design' && (
-          <DesignEditor 
-             template={activeTemplate} 
-             onSave={(t) => {
-               setActiveTemplate(t);
-               try { localStorage.setItem('dsdst_label_template_v2', JSON.stringify(t)); } catch(e) { console.warn('localStorage write failed', e); }
-             }}
-             sampleProduct={activeProduct}
-             settings={settings}
-             onBack={() => setActiveView('dashboard')}
+          <DesignEditor
+            template={activeTemplate}
+            onSave={handleTemplateSave}
+            sampleProduct={activeProduct}
+            settings={settings}
+            onBack={() => setActiveView('dashboard')}
           />
         )}
 
@@ -321,7 +333,7 @@ function SaveStatusBadge({ status }: { status: SaveStatus }) {
     loading: 'Kayıt yükleniyor',
     saving: 'Kaydediliyor',
     saved: 'Kaydedildi',
-    offline: 'Yerel mod',
+    offline: 'Tarayıcıda kayıtlı',
     error: 'Kayıt hatası',
   };
   const colors: Record<SaveStatus, string> = {

@@ -56,6 +56,23 @@ pm2 save
 
 Sunucuda farklı port veya kayıt klasörü kullanmak için `.env` dosyasında `PORT`, `DATA_DIR` ve `STATE_FILE` değerlerini ayarlayın. Kalıcı verinin korunması için `data/` klasörünü yedekleyin.
 
+### Docker ile Çalıştırma ve Güncelleme
+
+```bash
+docker compose up -d --build
+```
+
+Bu kurulum `./data` klasörünü container içindeki `/app/data` klasörüne bağlar. Yüklenen listeler, oluşturulan etiketler, ayarlar ve etiket tasarımı `./data/app-state.json` içinde kalıcı tutulur.
+
+Güncelleme için:
+
+```bash
+git pull origin main
+docker compose up -d --build
+```
+
+Kalıcı kayıtları silmemek için `./data` klasörünü silmeyin ve `docker compose down -v` kullanmayın.
+
 ## 📝 Örnek CSV Formatı
 
 Uygulamanın içindeki menüden **"Örnek CSV İndir"** diyerek güncel şablon formatına ulaşabilirsiniz.
