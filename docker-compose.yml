@@ -16,3 +16,18 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+  warehouse-label-renderer:
+    build: .
+    container_name: warehouse-label-renderer
+    restart: unless-stopped
+    command: ["node", "warehouse-renderer.mjs"]
+    ports:
+      - "${LABEL_RENDERER_PORT:-3010}:3010"
+    environment:
+      LABEL_RENDERER_PORT: 3010
+      LABEL_RENDERER_API_KEY: ${LABEL_RENDERER_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3010/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
