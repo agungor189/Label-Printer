@@ -148,6 +148,6 @@ LABEL_RENDERER_API_KEY=uzun-rastgele-ortak-anahtar \
 node warehouse-renderer.mjs
 ```
 
-Panel `POST /api/v1/package-label/render` yoluna merkezi şablon snapshot'ı ile paket verisini gönderir ve ham PDF alır. `GET /api/v1/package-label/default-template` varsayılan 150×100 mm paket şablonunu döndürür. Her iki uç nokta `LABEL_RENDERER_API_KEY` tanımlıysa `x-api-key` ister. Test: `node --test warehouse-renderer.test.mjs`.
+Panel `POST /api/v1/package-label/render` yoluna merkezi şablon snapshot'ı ile paket verisini gönderir ve ham PDF alır. Varsayılan paket etiketi SKU, tedarikçi no (`{Supplier_no}`), ürün adı, ölçü, kutu ağırlığı, lot, `1/N`, adet, barkod ve QR bilgisini taşır. `GET /api/v1/package-label/default-template` varsayılan 150×100 mm paket şablonunu döndürür. Her iki uç nokta `LABEL_RENDERER_API_KEY` tanımlıysa `x-api-key` ister. Test: `node --test warehouse-renderer.test.mjs`.
 
 Docker Compose ikinci bir `warehouse-label-renderer` servisini host'un `3010` portunda açar. Panel ayrı bir compose projesindeyse `LABEL_RENDERER_URL=http://host.docker.internal:3010` kullanın ve iki tarafta aynı `LABEL_RENDERER_API_KEY` değerini tanımlayın.
