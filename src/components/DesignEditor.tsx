@@ -8,19 +8,24 @@ import {
   Undo2, Redo2, Eye, EyeOff, Lock, Unlock, Minus,
   AlignStartHorizontal, AlignEndHorizontal, AlignStartVertical, AlignEndVertical,
   Group, Ungroup, ClipboardCopy, ClipboardPaste, Layers,
+  MapPin, Package,
 } from 'lucide-react';
 import { cn, safeUUID } from '../lib/utils';
-import { TEMPLATES } from '../lib/templates';
+import { LOCATION_TEMPLATES, TEMPLATES } from '../lib/templates';
 import { generatePdfFromDesign } from '../lib/pdfGenerator';
+import { generateLocationLabelsPdf, sanitizeLocationLabelTemplate } from '../lib/locationLabels';
 import { findElementAtPoint, rectsIntersect } from '../lib/hitTesting';
 import { sanitizeLabelTemplate } from '../lib/templateSafety';
 
 interface Props {
+  key?: React.Key;
   template: LabelTemplate;
   onSave: (template: LabelTemplate) => void;
   sampleProduct: ProductData;
   settings: LabelSettings;
   onBack: () => void;
+  editorType?: 'product' | 'location';
+  onEditorTypeChange?: (type: 'product' | 'location') => void;
 }
 
 const SAFE_MARGIN = 3;
@@ -36,8 +41,13 @@ type ResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
 interface Toast { id: number; type: 'success' | 'error' | 'info'; message: string; }
 
-export function DesignEditor({ template: initialTemplate, onSave, sampleProduct, settings, onBack }: Props) {
-  const safeInitialTemplate = useMemo(() => sanitizeLabelTemplate(initialTemplate), [initialTemplate]);
+export function DesignEditor({ template: initialTemplate, onSave, sampleProduct, settings, onBack, editorType = 'product', onEditorTypeChange }: Props) {
+  const isLocationEditor = editorType === 'location';
+  const safeInitialTemplate = useMemo(
+    () => isLocationEditor ? sanitizeLocationLabelTemplate(initialTemplate) : sanitizeLabelTemplate(initialTemplate),
+    [initialTemplate, isLocationEditor],
+  );
+  const editorTemplates = isLocationEditor ? LOCATION_TEMPLATES : TEMPLATES;
   const [template, setTemplate] = useState<LabelTemplate>(safeInitialTemplate);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [zoom, setZoom] = useState(4); // 1mm = N px
@@ -58,7 +68,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
   const [historyPointer, setHistoryPointer] = useState<number>(0);
 
   const pushHistory = useCallback((next: LabelTemplate) => {
-    next = sanitizeLabelTemplate(next, template);
+    next = isLocationEditor ? sanitizeLocationLabelTemplate(next) : sanitizeLabelTemplate(next, template);
     setHistory(h => {
       const trimmed = h.slice(0, historyPointer + 1);
       trimmed.push(next);
@@ -67,7 +77,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
       return trimmed;
     });
     setTemplate(next);
-  }, [historyPointer, template]);
+  }, [historyPointer, template, isLocationEditor]);
 
   const undo = useCallback(() => {
     if (historyPointer > 0) {
@@ -112,15 +122,15 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
       y: 10,
       width: partial.type === 'qr' ? 20 : partial.type === 'barcode' ? 70 : 40,
       height: partial.type === 'qr' ? 20 : partial.type === 'line' ? 0.5 : partial.type === 'barcode' ? 12 : 8,
-      value: partial.type === 'text' ? 'Yeni Metin'
-        : partial.type === 'barcode' ? '{SKU}'
+      value: partial.type === 'text' ? (isLocationEditor ? '{Lokasyon}' : 'Yeni Metin')
+        : partial.type === 'barcode' ? (isLocationEditor ? '{Lokasyon}' : '{SKU}')
         : partial.type === 'qr' ? '{ALL_INFO}'
         : '',
       fontSize: 3.5,
       borderWidth: partial.type === 'box' || partial.type === 'line' ? 0.4 : undefined,
       visible: true,
       locked: false,
-      showBarcodeText: partial.type === 'barcode' ? true : undefined,
+      showBarcodeText: partial.type === 'barcode' ? !isLocationEditor : undefined,
       ...partial,
     };
     pushHistory({ ...template, elements: [...template.elements, clampToCanvas(base)] });
@@ -442,15 +452,18 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
 
   // ---- Save / export ----
   const handleSave = () => {
-    onSave(template);
+    onSave(isLocationEditor ? sanitizeLocationLabelTemplate(template) : template);
     showToast('success', 'Tasarım kaydedildi.');
   };
 
   const handleTestPdf = async () => {
     setIsGenerating(true);
     try {
-      const product = sampleProduct;
-      await generatePdfFromDesign([product], template, settings, { filename: 'test_etiket.pdf' });
+      if (isLocationEditor) {
+        await generateLocationLabelsPdf(['A1-K1-P1'], '100x100', template, 'test_lokasyon_etiketi.pdf');
+      } else {
+        await generatePdfFromDesign([sampleProduct], template, settings, { filename: 'test_etiket.pdf' });
+      }
       showToast('success', 'Test PDF oluşturuldu.');
     } catch (e: any) {
       showToast('error', e?.message || 'PDF oluşturulamadı.');
@@ -601,28 +614,41 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
 
           <div className="h-6 w-px bg-slate-300 mx-2" />
 
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-500 font-medium">Şablon:</span>
-            <select
-              className="border border-slate-300 rounded px-2 py-1 bg-slate-50 hover:bg-white outline-none cursor-pointer text-slate-700 font-medium"
-              value={template.id}
-              onChange={(e) => {
-                const selected = TEMPLATES.find(t => t.id === e.target.value);
-                if (selected) {
-                  if (window.confirm('Bunu seçerseniz mevcut tasarım silinecek. Emin misiniz?')) {
+          <div className="flex items-center gap-1 rounded-md bg-slate-100 p-1">
+            <button onClick={() => onEditorTypeChange?.('product')} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold', !isLocationEditor ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800')}>
+              <Package size={14} /> Ürün Etiketi
+            </button>
+            <button onClick={() => onEditorTypeChange?.('location')} className={cn('flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold', isLocationEditor ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800')}>
+              <MapPin size={14} /> Lokasyon Etiketi
+            </button>
+          </div>
+
+          <div className="h-6 w-px bg-slate-300 mx-2" />
+
+          {isLocationEditor ? (
+            <span className="rounded border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">100×50 mm yarım etiket</span>
+          ) : (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-500 font-medium">Şablon:</span>
+              <select
+                className="border border-slate-300 rounded px-2 py-1 bg-slate-50 hover:bg-white outline-none cursor-pointer text-slate-700 font-medium"
+                value={template.id}
+                onChange={(e) => {
+                  const selected = editorTemplates.find(t => t.id === e.target.value);
+                  if (selected && window.confirm('Bunu seçerseniz mevcut tasarım silinecek. Emin misiniz?')) {
                     pushHistory(JSON.parse(JSON.stringify(selected)));
                     setSelectedIds([]);
                   }
-                }
-              }}
-            >
-              <option value={template.id}>{template.name} (Geçerli)</option>
-              <option disabled>--- Hazır Şablonlar ---</option>
-              {TEMPLATES.filter(t => t.id !== template.id).map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
+                }}
+              >
+                <option value={template.id}>{template.name} (Geçerli)</option>
+                <option disabled>--- Hazır Şablonlar ---</option>
+                {editorTemplates.filter(t => t.id !== template.id).map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="h-6 w-px bg-slate-300 mx-2" />
 
@@ -677,16 +703,22 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => addElement({ type: 'text' })}    className="flex flex-col items-center gap-1 p-3 border border-slate-200 rounded-md text-xs hover:bg-indigo-50 bg-white shadow-sm"><Type size={18} /> Metin</button>
               <button onClick={() => addElement({ type: 'barcode' })} className="flex flex-col items-center gap-1 p-3 border border-slate-200 rounded-md text-xs hover:bg-indigo-50 bg-white shadow-sm"><Barcode size={18} /> Barkod</button>
-              <button onClick={() => addElement({ type: 'qr' })}      className="flex flex-col items-center gap-1 p-3 border border-slate-200 rounded-md text-xs hover:bg-indigo-50 bg-white shadow-sm"><QrCode size={18} /> QR Kod</button>
-              <button onClick={() => addElement({ type: 'box' })}     className="flex flex-col items-center gap-1 p-3 border border-slate-200 rounded-md text-xs hover:bg-indigo-50 bg-white shadow-sm"><Square size={18} /> Kutu</button>
-              <button onClick={() => addElement({ type: 'line', width: 60, height: 0.5 })} className="flex flex-col items-center gap-1 p-3 border border-slate-200 rounded-md text-xs hover:bg-indigo-50 bg-white shadow-sm col-span-2"><Minus size={18} /> Çizgi</button>
+              {!isLocationEditor && (
+                <>
+                  <button onClick={() => addElement({ type: 'qr' })}      className="flex flex-col items-center gap-1 p-3 border border-slate-200 rounded-md text-xs hover:bg-indigo-50 bg-white shadow-sm"><QrCode size={18} /> QR Kod</button>
+                  <button onClick={() => addElement({ type: 'box' })}     className="flex flex-col items-center gap-1 p-3 border border-slate-200 rounded-md text-xs hover:bg-indigo-50 bg-white shadow-sm"><Square size={18} /> Kutu</button>
+                  <button onClick={() => addElement({ type: 'line', width: 60, height: 0.5 })} className="flex flex-col items-center gap-1 p-3 border border-slate-200 rounded-md text-xs hover:bg-indigo-50 bg-white shadow-sm col-span-2"><Minus size={18} /> Çizgi</button>
+                </>
+              )}
             </div>
           </div>
 
           <div className="p-4 border-b border-slate-200">
             <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider">Dinamik Alanlar</h3>
             <div className="flex flex-col gap-1.5">
-              {[
+              {(isLocationEditor ? [
+                { lbl: 'Lokasyon Kodu', val: '{Lokasyon}' },
+              ] : [
                 { lbl: 'SKU', val: '{SKU}' },
                 { lbl: 'Ürün Kodu', val: '{Urun_kodu}' },
                 { lbl: 'Malzeme', val: '{Malzeme}' },
@@ -698,7 +730,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
                 { lbl: 'Paket No', val: '{Paket_no}' },
                 { lbl: 'Ürün ağırlığı', val: '{Urun_agirligi}' },
                 { lbl: 'Kutu ağırlığı', val: '{Kutu_agirligi}' },
-              ].map(f => (
+              ]).map(f => (
                 <button key={f.val} onClick={() => addElement({ type: 'text', value: f.val, width: 40, height: 5, fontSize: 3 })} className="text-left px-3 py-2 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200">
                   {f.lbl}
                 </button>
@@ -867,6 +899,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
             zoom={zoom}
             snap={snap}
             setSnap={setSnap}
+            locationMode={isLocationEditor}
           />
         </div>
       </div>
@@ -897,6 +930,7 @@ interface RightPanelProps {
   zoom: number;
   snap: boolean;
   setSnap: (v: boolean) => void;
+  locationMode: boolean;
 }
 
 /**
@@ -905,7 +939,7 @@ interface RightPanelProps {
  * context-sensitive properties section below that scrolls independently.
  * Selecting an object never hides the preview.
  */
-const RightPanel = React.memo(function RightPanel({ selectedElements, template, onUpdate, sampleProduct, settings }: RightPanelProps) {
+const RightPanel = React.memo(function RightPanel({ selectedElements, template, onUpdate, sampleProduct, settings, locationMode }: RightPanelProps) {
   return (
     <>
       {/* Top: live preview — always rendered, fixed size */}
@@ -936,7 +970,7 @@ const RightPanel = React.memo(function RightPanel({ selectedElements, template, 
           <MultiSelectPanel selectedElements={selectedElements} />
         )}
         {selectedElements.length === 1 && (
-          <SingleElementPanel el={selectedElements[0]} onUpdate={onUpdate} />
+          <SingleElementPanel el={selectedElements[0]} onUpdate={onUpdate} locationMode={locationMode} />
         )}
       </div>
     </>
@@ -980,9 +1014,10 @@ function MultiSelectPanel({ selectedElements }: { selectedElements: LabelElement
 interface SingleElementPanelProps {
   el: LabelElement;
   onUpdate: (id: string, updates: Partial<LabelElement>, commit?: boolean) => void;
+  locationMode: boolean;
 }
 
-function SingleElementPanel({ el, onUpdate }: SingleElementPanelProps) {
+function SingleElementPanel({ el, onUpdate, locationMode }: SingleElementPanelProps) {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -1045,7 +1080,7 @@ function SingleElementPanel({ el, onUpdate }: SingleElementPanelProps) {
         </label>
       )}
 
-      {el.type === 'barcode' && (
+      {el.type === 'barcode' && !locationMode && (
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={el.showBarcodeText !== false} onChange={e => onUpdate(el.id, { showBarcodeText: e.target.checked }, true)} />
           Barkod altında metin göster

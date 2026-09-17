@@ -23,6 +23,7 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server.mjs ./
 COPY warehouse-renderer.mjs ./
+COPY template-store.mjs ./
 
 RUN mkdir -p /app/data && chown -R node:node /app
 

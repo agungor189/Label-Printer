@@ -9,6 +9,8 @@ services:
       PORT: 3000
       DATA_DIR: /app/data
       STATE_FILE: app-state.json
+      LABEL_API_KEY: ${LABEL_API_KEY:-}
+      LABEL_RENDERER_API_KEY: ${LABEL_RENDERER_API_KEY:-}
     volumes:
       - ./data:/app/data
     healthcheck:
@@ -26,6 +28,10 @@ services:
     environment:
       LABEL_RENDERER_PORT: 3010
       LABEL_RENDERER_API_KEY: ${LABEL_RENDERER_API_KEY:-}
+      DATA_DIR: /app/data
+      STATE_FILE: app-state.json
+    volumes:
+      - ./data:/app/data:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3010/health"]
       interval: 30s

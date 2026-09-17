@@ -3,7 +3,9 @@ import express from 'express';
 import { jsPDF } from 'jspdf';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findDefaultTemplate, isTemplatePurpose, listTemplates, readTemplateState } from './template-store.mjs';
 
 const MAX_BODY_BYTES = '2mb';
 const MAX_ELEMENTS = 100;
@@ -11,6 +13,8 @@ const MAX_ELEMENTS = 100;
 export const PACKAGE_LABEL_TEMPLATE = {
   id: 'warehouse-package-150x100-v1',
   name: 'DSDST Depo Paket Etiketi',
+  purpose: 'goods_receipt',
+  isDefault: true,
   width: 150,
   height: 100,
   elements: [
@@ -23,16 +27,60 @@ export const PACKAGE_LABEL_TEMPLATE = {
     { id: 'supplier', type: 'text', x: 7, y: 46, width: 70, height: 6, value: 'TEDARIK: {Supplier_no}', fontSize: 3.5, fontWeight: 'bold' },
     { id: 'size-weight', type: 'text', x: 79, y: 46, width: 63, height: 6, value: '{Olcu} · {Kutu_agirligi} kg', fontSize: 3.5, textAlign: 'right' },
     { id: 'count', type: 'text', x: 7, y: 53, width: 60, height: 8, value: 'ADET: {Paket_ici_adet}', fontSize: 5, fontWeight: 'black' },
-    { id: 'ordinal', type: 'text', x: 76, y: 53, width: 66, height: 8, value: 'PAKET {Paket_no}/{Toplam_paket}', fontSize: 5, fontWeight: 'black', textAlign: 'right' },
+    { id: 'ordinal', type: 'text', x: 76, y: 53, width: 66, height: 8, value: 'PAKET {Paket_no}', fontSize: 5, fontWeight: 'black', textAlign: 'right' },
     { id: 'package-barcode', type: 'barcode', x: 7, y: 64, width: 96, height: 27, value: '{Package_code}', showBarcodeText: true },
     { id: 'package-qr', type: 'qr', x: 113, y: 64, width: 27, height: 27, value: '{Package_code}' },
   ],
 };
 
+export const LOCATION_LABEL_TEMPLATE = {
+  id: 'location_default',
+  name: 'Lokasyon Etiketi',
+  purpose: 'location',
+  isDefault: true,
+  width: 100,
+  height: 50,
+  elements: [
+    { id: 'location_name', type: 'text', x: 5, y: 5, width: 90, height: 12, value: '{Lokasyon}', fontSize: 10, fontWeight: 'black', textAlign: 'center' },
+    { id: 'location_barcode', type: 'barcode', x: 8, y: 23, width: 84, height: 21, value: '{Lokasyon}', showBarcodeText: false },
+  ],
+};
+
+const FALLBACK_TEMPLATES = [PACKAGE_LABEL_TEMPLATE, LOCATION_LABEL_TEMPLATE];
+
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
-export function replaceWarehouseVariables(value, product) {
+export function normalizeLabelData(input = {}) {
+  const value = (...keys) => {
+    for (const key of keys) {
+      if (input[key] !== undefined && input[key] !== null) return input[key];
+    }
+    return '';
+  };
+  return {
+    packageCode: value('packageCode', 'Package_code', 'package_code'),
+    sku: value('sku', 'SKU'),
+    urunKodu: value('urunKodu', 'Urun_kodu', 'urun_kodu'),
+    supplierNo: value('supplierNo', 'Supplier_no', 'supplier_no'),
+    malzeme: value('malzeme', 'Malzeme'),
+    tip: value('tip', 'Tip'),
+    olcu: value('olcu', 'Olcu', 'Ölçü'),
+    urunAdi: value('urunAdi', 'Urun_adi', 'urun_adi'),
+    partiLot: value('partiLot', 'Parti_Lot', 'Parti_lot', 'parti_lot'),
+    paketIciAdet: value('paketIciAdet', 'Paket_ici_adet', 'paket_ici_adet'),
+    paketNo: value('paketNo', 'Paket_no', 'paket_no'),
+    toplamPaket: value('toplamPaket', 'Toplam_paket', 'toplam_paket'),
+    lokasyon: value('lokasyon', 'Lokasyon', 'location'),
+    not: value('not', 'Not'),
+    urunAgirligi: value('urunAgirligi', 'Urun_agirligi', 'urun_agirligi'),
+    kutuAgirligi: value('kutuAgirligi', 'Kutu_agirligi', 'kutu_agirligi'),
+    stokSayisi: value('stokSayisi', 'Stok_sayisi', 'stok_sayisi'),
+  };
+}
+
+export function replaceWarehouseVariables(value, productInput) {
+  const product = normalizeLabelData(productInput);
   const values = {
     Package_code: product.packageCode,
     SKU: product.sku,
@@ -70,7 +118,7 @@ export function replaceWarehouseVariables(value, product) {
   return result;
 }
 
-function normalizeTemplate(input) {
+export function normalizeTemplate(input) {
   const source = input && typeof input === 'object' ? input : PACKAGE_LABEL_TEMPLATE;
   const width = Math.min(300, Math.max(20, finite(source.width, 150)));
   const height = Math.min(300, Math.max(20, finite(source.height, 100)));
@@ -141,8 +189,11 @@ async function drawQr(pdf, element, product) {
 
 export async function renderWarehouseLabelPdf(payload) {
   const template = normalizeTemplate(payload?.template);
-  const product = payload?.product && typeof payload.product === 'object' ? payload.product : {};
-  if (!text(product.packageCode)) throw new Error('product.packageCode zorunludur.');
+  const sourceData = payload?.data && typeof payload.data === 'object' ? payload.data : payload?.product;
+  const product = normalizeLabelData(sourceData && typeof sourceData === 'object' ? sourceData : {});
+  if (!text(product.packageCode) && !text(product.sku) && !text(product.lokasyon)) {
+    throw new Error('Etiket verisinde Package_code, SKU veya Lokasyon alanlarından biri zorunludur.');
+  }
   const orientation = template.width > template.height ? 'landscape' : 'portrait';
   const pdf = new jsPDF({ orientation, unit: 'mm', format: [template.width, template.height], compress: true });
   const ordered = [
@@ -170,19 +221,66 @@ export async function renderWarehouseLabelPdf(payload) {
 export function createWarehouseRendererApp(options = {}) {
   const app = express();
   const apiKey = options.apiKey ?? process.env.LABEL_RENDERER_API_KEY ?? '';
+  const stateFile = path.resolve(options.stateFile || process.env.LABEL_TEMPLATE_STATE_FILE || path.join(process.env.DATA_DIR || 'data', process.env.STATE_FILE || 'app-state.json'));
+  const authorized = (req, res) => {
+    if (!apiKey || req.headers['x-api-key'] === apiKey) return true;
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  };
+  const loadState = async () => readTemplateState(stateFile, FALLBACK_TEMPLATES);
   app.disable('x-powered-by');
   app.use(express.json({ limit: MAX_BODY_BYTES }));
-  app.get('/health', (_req, res) => res.json({ ok: true, service: 'dsdst-label-renderer' }));
-  app.get('/api/v1/package-label/default-template', (req, res) => {
-    if (apiKey && req.headers['x-api-key'] !== apiKey) return res.status(401).json({ error: 'Unauthorized' });
-    return res.json(PACKAGE_LABEL_TEMPLATE);
+  app.get('/health', (_req, res) => res.json({ ok: true, service: 'dsdst-label-renderer', stateFile }));
+  app.get('/api/v1/templates', async (req, res) => {
+    if (!authorized(req, res)) return;
+    const purpose = String(req.query.purpose || '');
+    if (purpose && !isTemplatePurpose(purpose)) return res.status(400).json({ error: 'Geçersiz template purpose.' });
+    return res.json({ templates: listTemplates(await loadState(), purpose || undefined) });
+  });
+  app.get('/api/v1/templates/default', async (req, res) => {
+    if (!authorized(req, res)) return;
+    const purpose = String(req.query.purpose || 'goods_receipt');
+    if (!isTemplatePurpose(purpose)) return res.status(400).json({ error: 'Geçersiz template purpose.' });
+    const template = findDefaultTemplate(await loadState(), purpose);
+    return template ? res.json(template) : res.status(404).json({ error: 'Varsayılan şablon bulunamadı.' });
+  });
+  app.get('/api/v1/templates/:id', async (req, res) => {
+    if (!authorized(req, res)) return;
+    const template = (await loadState()).templates.find((item) => item.id === req.params.id);
+    return template ? res.json(template) : res.status(404).json({ error: 'Şablon bulunamadı.' });
+  });
+  app.get('/api/v1/package-label/default-template', async (req, res) => {
+    if (!authorized(req, res)) return;
+    return res.json(findDefaultTemplate(await loadState(), 'goods_receipt') || PACKAGE_LABEL_TEMPLATE);
   });
   app.post('/api/v1/package-label/render', async (req, res) => {
-    if (apiKey && req.headers['x-api-key'] !== apiKey) return res.status(401).json({ error: 'Unauthorized' });
+    if (!authorized(req, res)) return;
     try {
-      const pdf = await renderWarehouseLabelPdf(req.body);
+      const template = req.body?.template || findDefaultTemplate(await loadState(), 'goods_receipt');
+      const pdf = await renderWarehouseLabelPdf({ ...req.body, template });
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Length', String(pdf.length));
+      return res.send(pdf);
+    } catch (error) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : 'PDF oluşturulamadı.' });
+    }
+  });
+  app.post('/api/v1/render', async (req, res) => {
+    if (!authorized(req, res)) return;
+    try {
+      const purpose = String(req.body?.purpose || 'custom');
+      if (!isTemplatePurpose(purpose)) return res.status(400).json({ error: 'Geçersiz template purpose.' });
+      const state = await loadState();
+      const requestedId = text(req.body?.templateId, 100);
+      const template = requestedId
+        ? state.templates.find((item) => item.id === requestedId && item.purpose === purpose)
+        : findDefaultTemplate(state, purpose);
+      if (!template) return res.status(404).json({ error: `${purpose} için şablon bulunamadı.` });
+      const pdf = await renderWarehouseLabelPdf({ template, data: req.body?.data });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${purpose}-label.pdf"`);
+      res.setHeader('X-Label-Template-Id', template.id);
+      res.setHeader('X-Label-Template-Purpose', template.purpose);
       return res.send(pdf);
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : 'PDF oluşturulamadı.' });

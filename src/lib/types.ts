@@ -1,5 +1,7 @@
 export interface ProductData {
   id?: string;
+  packageCode?: string;
+  supplierNo?: string;
   sku: string;
   urunKodu: string;
   malzeme: string;
@@ -60,4 +62,8 @@ export interface LabelTemplate {
   width: number;  // mm (typically 100)
   height: number; // mm (typically 100)
   elements: LabelElement[];
+  purpose?: LabelTemplatePurpose;
+  isDefault?: boolean;
 }
+
+export type LabelTemplatePurpose = 'goods_receipt' | 'location' | 'product_package' | 'kit' | 'shipping' | 'custom';

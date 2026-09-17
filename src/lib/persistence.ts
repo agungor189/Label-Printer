@@ -6,6 +6,7 @@ export interface PersistedAppState {
   products: ProductData[];
   settings: LabelSettings | null;
   template: LabelTemplate | null;
+  locationTemplate: LabelTemplate | null;
   updatedAt: string | null;
   source?: 'server' | 'local';
 }
@@ -26,13 +27,14 @@ function normalizeState(state: any, source: PersistedAppState['source']): Persis
     products: Array.isArray(state.products) ? state.products : [],
     settings: state.settings && typeof state.settings === 'object' ? state.settings : null,
     template: state.template && typeof state.template === 'object' ? sanitizeLabelTemplate(state.template) : null,
+    locationTemplate: state.locationTemplate && typeof state.locationTemplate === 'object' ? sanitizeLabelTemplate(state.locationTemplate) : null,
     updatedAt: typeof state.updatedAt === 'string' ? state.updatedAt : null,
     source,
   };
 }
 
 function hasMeaningfulState(state: PersistedAppState | null): boolean {
-  return Boolean(state && (state.products.length > 0 || state.settings || state.template));
+  return Boolean(state && (state.products.length > 0 || state.settings || state.template || state.locationTemplate));
 }
 
 function loadLocalState(): PersistedAppState | null {
@@ -45,13 +47,14 @@ function loadLocalState(): PersistedAppState | null {
   }
 }
 
-function saveLocalState(state: Pick<PersistedAppState, 'products' | 'settings' | 'template'>): boolean {
+function saveLocalState(state: Pick<PersistedAppState, 'products' | 'settings' | 'template' | 'locationTemplate'>): boolean {
   try {
     window.localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify({
-      version: 1,
+      version: 2,
       products: state.products,
       settings: state.settings,
       template: state.template ? sanitizeLabelTemplate(state.template) : null,
+      locationTemplate: state.locationTemplate ? sanitizeLabelTemplate(state.locationTemplate) : null,
       updatedAt: new Date().toISOString(),
     }));
     return true;
@@ -60,7 +63,7 @@ function saveLocalState(state: Pick<PersistedAppState, 'products' | 'settings' |
   }
 }
 
-export function saveLocalSnapshot(state: Pick<PersistedAppState, 'products' | 'settings' | 'template'>): boolean {
+export function saveLocalSnapshot(state: Pick<PersistedAppState, 'products' | 'settings' | 'template' | 'locationTemplate'>): boolean {
   return saveLocalState(state);
 }
 
@@ -87,7 +90,7 @@ export async function loadPersistentState(): Promise<PersistedAppState | null> {
   }
 }
 
-export async function savePersistentState(state: Pick<PersistedAppState, 'products' | 'settings' | 'template'>): Promise<SaveStatus> {
+export async function savePersistentState(state: Pick<PersistedAppState, 'products' | 'settings' | 'template' | 'locationTemplate'>): Promise<SaveStatus> {
   const savedLocal = saveLocalState(state);
 
   try {
@@ -95,10 +98,11 @@ export async function savePersistentState(state: Pick<PersistedAppState, 'produc
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        version: 1,
+        version: 2,
         products: state.products,
         settings: state.settings,
         template: state.template ? sanitizeLabelTemplate(state.template) : null,
+        locationTemplate: state.locationTemplate ? sanitizeLabelTemplate(state.locationTemplate) : null,
       }),
     });
     return response.ok ? 'saved' : (savedLocal ? 'offline' : 'error');

@@ -12,6 +12,8 @@ import { LabelTemplate } from './types';
 export const DEFAULT_TEMPLATE: LabelTemplate = {
   id: 'dsdst_depo_kabul',
   name: 'DSDST Depo Kabul (150×100)',
+  purpose: 'goods_receipt',
+  isDefault: true,
   width: 150,
   height: 100,
   elements: [
@@ -91,6 +93,7 @@ export const DEFAULT_TEMPLATE: LabelTemplate = {
 export const MINIMAL_TEMPLATE: LabelTemplate = {
   id: 'minimal',
   name: 'Minimal Etiket',
+  purpose: 'goods_receipt',
   width: 100,
   height: 100,
   elements: [
@@ -101,9 +104,27 @@ export const MINIMAL_TEMPLATE: LabelTemplate = {
   ],
 };
 
+// Location labels are designed as one 100×50 mm half. During printing the
+// same isolated design is placed twice on a 100×100 or 150×100 sheet.
+export const DEFAULT_LOCATION_TEMPLATE: LabelTemplate = {
+  id: 'location_default',
+  name: 'Lokasyon Etiketi',
+  purpose: 'location',
+  isDefault: true,
+  width: 100,
+  height: 50,
+  elements: [
+    { id: 'location_name', type: 'text', x: 5, y: 5, width: 90, height: 12, value: '{Lokasyon}', fontSize: 10, fontWeight: 'black', textAlign: 'center' },
+    { id: 'location_barcode', type: 'barcode', x: 8, y: 23, width: 84, height: 21, value: '{Lokasyon}', showBarcodeText: false },
+  ],
+};
+
+export const LOCATION_TEMPLATES = [DEFAULT_LOCATION_TEMPLATE];
+
 export const LARGE_BARCODE_TEMPLATE: LabelTemplate = {
   id: 'large_barcode',
   name: 'Büyük Barkod Etiketi',
+  purpose: 'goods_receipt',
   width: 100,
   height: 100,
   elements: [
@@ -121,6 +142,7 @@ export const LARGE_BARCODE_TEMPLATE: LabelTemplate = {
 export const QR_TECHNICAL_TEMPLATE: LabelTemplate = {
   id: 'qr_technical',
   name: 'QR Ağırlıklı Teknik Etiket',
+  purpose: 'goods_receipt',
   width: 100,
   height: 100,
   elements: [

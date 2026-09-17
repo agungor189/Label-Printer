@@ -10,6 +10,7 @@ export function replaceVariables(text: string, product: ProductData, settings?: 
   // ALL_INFO: full block (used for QR by default)
   if (result.includes('{ALL_INFO}')) {
     const allInfo = [
+      `PACKAGE_CODE: ${product.packageCode || ''}`,
       `SKU: ${product.sku || ''}`,
       `URUN_KODU: ${product.urunKodu || ''}`,
       `MALZEME: ${product.malzeme || ''}`,
@@ -26,6 +27,8 @@ export function replaceVariables(text: string, product: ProductData, settings?: 
     result = result.replace(/{ALL_INFO}/g, allInfo);
   }
 
+  result = result.replace(/{Package_code}/g, product.packageCode || '');
+  result = result.replace(/{Supplier_no}/g, product.supplierNo || product.urunKodu || '');
   result = result.replace(/{SKU}/g, product.sku || '');
   result = result.replace(/{Urun_kodu}/g, product.urunKodu || '');
   result = result.replace(/{Malzeme}/g, product.malzeme || '');

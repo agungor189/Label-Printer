@@ -1,20 +1,22 @@
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import Papa from 'papaparse';
-import { Download, Upload, Printer, List, LayoutTemplate, Settings, Eye, FileText } from 'lucide-react';
+import { Download, Upload, Printer, List, LayoutTemplate, Settings, Eye, MapPin } from 'lucide-react';
 import { ColumnMapper } from './components/ColumnMapper';
 import { ValidationPreview } from './components/ValidationPreview';
 import { parseFile } from './lib/fileParser';
 import { autoMapColumns, processMappedData, generatePrintableList, ProcessedRow } from './lib/dataProcessor';
 import { ProductData, LabelSettings, LabelTemplate } from './lib/types';
-import { DEFAULT_TEMPLATE } from './lib/templates';
+import { DEFAULT_LOCATION_TEMPLATE, DEFAULT_TEMPLATE } from './lib/templates';
 import { generatePdfFromDesign } from './lib/pdfGenerator';
 import { cn, safeUUID } from './lib/utils';
 import { DashboardView } from './components/DashboardView';
 import { DesignEditor } from './components/DesignEditor';
 import { PreviewExportView } from './components/PreviewExportView';
 import { SettingsView } from './components/SettingsView';
+import { LocationLabelsView } from './components/LocationLabelsView';
 import { loadPersistentState, saveLocalSnapshot, savePersistentState, type SaveStatus } from './lib/persistence';
 import { sanitizeLabelTemplate } from './lib/templateSafety';
+import { createLocationSampleProduct, sanitizeLocationLabelTemplate } from './lib/locationLabels';
 
 const DEFAULT_SETTINGS: LabelSettings = {
   qrType: 'all_info',
@@ -45,10 +47,11 @@ const DEFAULT_PRODUCT: ProductData = {
   stokSayisi: "128"
 };
 
-export type AppView = 'dashboard' | 'mapping' | 'validation' | 'design' | 'preview' | 'settings';
+export type AppView = 'dashboard' | 'mapping' | 'validation' | 'design' | 'preview' | 'locations' | 'settings';
 
 export default function App() {
   const [activeView, setActiveView] = useState<AppView>('dashboard');
+  const [designEditorType, setDesignEditorType] = useState<'product' | 'location'>('product');
   
   const [data, setData] = useState<ProductData[]>([]);
   const [settings, setSettings] = useState<LabelSettings>(DEFAULT_SETTINGS);
@@ -62,6 +65,13 @@ export default function App() {
       if (saved) return sanitizeLabelTemplate(JSON.parse(saved));
     } catch(e) {}
     return DEFAULT_TEMPLATE;
+  });
+  const [locationTemplate, setLocationTemplate] = useState<LabelTemplate>(() => {
+    try {
+      const saved = localStorage.getItem('dsdst_location_label_template_v1');
+      if (saved) return sanitizeLocationLabelTemplate(JSON.parse(saved));
+    } catch(e) {}
+    return DEFAULT_LOCATION_TEMPLATE;
   });
 
   // Export State
@@ -97,6 +107,15 @@ export default function App() {
             console.warn('localStorage write failed', e);
           }
         }
+        if (persisted.locationTemplate) {
+          const template = sanitizeLocationLabelTemplate(persisted.locationTemplate);
+          setLocationTemplate(template);
+          try {
+            localStorage.setItem('dsdst_location_label_template_v1', JSON.stringify(template));
+          } catch (e) {
+            console.warn('localStorage write failed', e);
+          }
+        }
         setSaveStatus(persisted.source === 'local' ? 'offline' : 'saved');
       } else {
         setSaveStatus('offline');
@@ -121,6 +140,7 @@ export default function App() {
       products: data,
       settings,
       template: activeTemplate,
+      locationTemplate,
     });
 
     saveTimer.current = setTimeout(async () => {
@@ -128,6 +148,7 @@ export default function App() {
         products: data,
         settings,
         template: activeTemplate,
+        locationTemplate,
       });
       setSaveStatus(status);
     }, 700);
@@ -135,7 +156,7 @@ export default function App() {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [data, settings, activeTemplate]);
+  }, [data, settings, activeTemplate, locationTemplate]);
 
   const loadExample = () => {
     const fields = ['sku','urunKodu','urunAdi','malzeme','tip','olcu','partiLot','paketIciAdet','paketNo','toplamPaket','urunAgirligi','kutuAgirligi','stokSayisi','lokasyon','not','printQty'];
@@ -218,6 +239,16 @@ export default function App() {
     }
   }, []);
 
+  const handleLocationTemplateSave = useCallback((template: LabelTemplate) => {
+    const safeTemplate = sanitizeLocationLabelTemplate(template);
+    setLocationTemplate(safeTemplate);
+    try {
+      localStorage.setItem('dsdst_location_label_template_v1', JSON.stringify(safeTemplate));
+    } catch(e) {
+      console.warn('localStorage write failed', e);
+    }
+  }, []);
+
   const printPdf = async () => {
     if (printableData.length === 0) {
       alert('PDF oluşturmak için önce listeye ürün ekleyin.');
@@ -263,6 +294,9 @@ export default function App() {
              <button onClick={() => setActiveView('preview')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'preview' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
                 <Eye size={16} /> Önizleme & PDF
              </button>
+             <button onClick={() => setActiveView('locations')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'locations' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
+                <MapPin size={16} /> Lokasyon Etiketi
+             </button>
              <button onClick={() => setActiveView('settings')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'settings' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
                 <Settings size={16} /> Ayarlar
              </button>
@@ -304,11 +338,14 @@ export default function App() {
 
         {activeView === 'design' && (
           <DesignEditor
-            template={activeTemplate}
-            onSave={handleTemplateSave}
-            sampleProduct={activeProduct}
+            key={designEditorType}
+            template={designEditorType === 'product' ? activeTemplate : locationTemplate}
+            onSave={designEditorType === 'product' ? handleTemplateSave : handleLocationTemplateSave}
+            sampleProduct={designEditorType === 'product' ? activeProduct : createLocationSampleProduct('A1-K1-P1')}
             settings={settings}
             onBack={() => setActiveView('dashboard')}
+            editorType={designEditorType}
+            onEditorTypeChange={setDesignEditorType}
           />
         )}
 
@@ -325,6 +362,8 @@ export default function App() {
         {activeView === 'settings' && (
           <SettingsView settings={settings} setSettings={setSettings} />
         )}
+
+        {activeView === 'locations' && <LocationLabelsView template={locationTemplate} />}
       </main>
 
     </div>

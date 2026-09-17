@@ -138,9 +138,11 @@ Depo Planner tarafında `packages[*].placement` başlangıçta `null` kabul edil
 ## 📌 Teknik Notlar & İleriye Dönük Yapı
 Uygulama tam fonksiyonel bir "Client-Side Application" dır ancak istenildiği an kolayca bir backend'e veri gönderebilecek yapıya (örneğin SQLite veya PostgreSQL üzerinden çekilebilecek bir endpoint için `src/lib/types.ts` içerisindeki veri tiplerine uyumlu bir fetch ile entegre edilebilir) sahiptir. QR koda eklenebilen `{SKU}` parametreli custom url sayesinde DSDST depo panelinize (örn: `https://panel.dsdst.com/item/{SKU}`) bağlantı sağlanabilir.
 
-## Warehouse headless renderer
+## Warehouse canlı şablon API'si ve headless renderer
 
-`warehouse-renderer.mjs`, Panel baskı kuyruğu için Label Printer'ın aynı JSON öğe modelini ve jsPDF/JsBarcode/QRCode motorunu sunucu tarafında çalıştırır. Ürün/paket/lokasyon verisi burada saklanmaz; Panel tek veri kaynağıdır.
+`warehouse-renderer.mjs`, Panel baskı kuyruğu için Label Printer'ın aynı JSON öğe modelini ve jsPDF/JsBarcode/QRCode motorunu sunucu tarafında çalıştırır. Ürün/paket/lokasyon verisi burada saklanmaz; Warehouse/Panel tek operasyonel veri kaynağıdır. Editörde kaydedilen tasarım `data/app-state.json` içindeki `templates[]` koleksiyonuna `purpose` ile yazılır ve sonraki baskı tarafından anında okunur; Warehouse deploy edilmez.
+
+Desteklenen purpose değerleri: `goods_receipt`, `location`, `product_package`, `kit`, `shipping`, `custom`.
 
 ```bash
 LABEL_RENDERER_PORT=3010 \
@@ -148,6 +150,14 @@ LABEL_RENDERER_API_KEY=uzun-rastgele-ortak-anahtar \
 node warehouse-renderer.mjs
 ```
 
-Panel `POST /api/v1/package-label/render` yoluna merkezi şablon snapshot'ı ile paket verisini gönderir ve ham PDF alır. Varsayılan paket etiketi SKU, tedarikçi no (`{Supplier_no}`), ürün adı, ölçü, kutu ağırlığı, lot, `1/N`, adet, barkod ve QR bilgisini taşır. `GET /api/v1/package-label/default-template` varsayılan 150×100 mm paket şablonunu döndürür. Her iki uç nokta `LABEL_RENDERER_API_KEY` tanımlıysa `x-api-key` ister. Test: `node --test warehouse-renderer.test.mjs`.
+API uçları:
 
-Docker Compose ikinci bir `warehouse-label-renderer` servisini host'un `3010` portunda açar. Panel ayrı bir compose projesindeyse `LABEL_RENDERER_URL=http://host.docker.internal:3010` kullanın ve iki tarafta aynı `LABEL_RENDERER_API_KEY` değerini tanımlayın.
+- `GET /api/v1/templates?purpose=goods_receipt`
+- `GET /api/v1/templates/default?purpose=location`
+- `GET /api/v1/templates/:id`
+- `POST /api/v1/render` — `{ "purpose": "goods_receipt", "data": { ... } }` alır, PDF döndürür
+- Geriye uyumlu: `GET /api/v1/package-label/default-template`, `POST /api/v1/package-label/render`
+
+`LABEL_RENDERER_API_KEY` veya ana uygulamada `LABEL_API_KEY` tanımlıysa `x-api-key` zorunludur. Eski v1 state dosyaları açılışta bellekte güvenle normalize edilir; ilk kayıtta v2 biçimine atomik olarak yazılır. Eski `template`, `locationTemplate`, ürün ve ayar alanları korunur.
+
+Docker Compose ikinci bir `warehouse-label-renderer` servisini host'un `3010` portunda açar. İki servis aynı `./data` state klasörünü kullanır; renderer salt-okur bağlar. Panel ayrı bir compose projesindeyse `LABEL_RENDERER_URL=http://host.docker.internal:3010` kullanın ve iki tarafta aynı `LABEL_RENDERER_API_KEY` değerini tanımlayın.
