@@ -9,31 +9,55 @@ services:
       PORT: 3000
       DATA_DIR: /app/data
       STATE_FILE: app-state.json
-      LABEL_API_KEY: ${LABEL_API_KEY:-}
-      LABEL_RENDERER_API_KEY: ${LABEL_RENDERER_API_KEY:-}
+      PANEL_API_URL: ${PANEL_API_URL:?PANEL_API_URL is required}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
     volumes:
       - ./data:/app/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
+    networks:
+      - dsdst-internal
   warehouse-label-renderer:
     build: .
     container_name: warehouse-label-renderer
     restart: unless-stopped
     command: ["node", "warehouse-renderer.mjs"]
-    ports:
-      - "${LABEL_RENDERER_PORT:-3010}:3010"
+    expose:
+      - "3010"
     environment:
       LABEL_RENDERER_PORT: 3010
-      LABEL_RENDERER_API_KEY: ${LABEL_RENDERER_API_KEY:-}
+      LABEL_RENDERER_API_KEY: ${LABEL_RENDERER_API_KEY:?LABEL_RENDERER_API_KEY is required}
       DATA_DIR: /app/data
       STATE_FILE: app-state.json
     volumes:
       - ./data:/app/data:ro
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3010/health"]
       interval: 30s
       timeout: 5s
       retries: 3
+    networks:
+      - dsdst-internal
+
+networks:
+  dsdst-internal:
+    name: dsdst-internal
+    external: true

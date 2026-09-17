@@ -30,6 +30,13 @@ test('headless renderer geçerli PDF üretir', async () => {
   assert.equal(result.subarray(0, 4).toString(), '%PDF');
 });
 
+test('production renderer boş API key ile başlamayı reddeder', () => {
+  assert.throws(
+    () => createWarehouseRendererApp({ apiKey: '', nodeEnv: 'production' }),
+    /LABEL_RENDERER_API_KEY is required/,
+  );
+});
+
 test('purpose API diskteki son kaydedilmiş varsayılan şablonu deploy gerektirmeden kullanır', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'label-printer-test-'));
   const stateFile = path.join(directory, 'state.json');

@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import path from 'node:path';
+import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { findDefaultTemplate, isTemplatePurpose, listTemplates, readTemplateState } from './template-store.mjs';
 
@@ -220,10 +221,17 @@ export async function renderWarehouseLabelPdf(payload) {
 
 export function createWarehouseRendererApp(options = {}) {
   const app = express();
-  const apiKey = options.apiKey ?? process.env.LABEL_RENDERER_API_KEY ?? '';
+  const apiKey = String(options.apiKey ?? process.env.LABEL_RENDERER_API_KEY ?? '').trim();
+  const nodeEnv = options.nodeEnv ?? process.env.NODE_ENV ?? 'development';
+  if (nodeEnv === 'production' && !apiKey) {
+    throw new Error('LABEL_RENDERER_API_KEY is required in production.');
+  }
   const stateFile = path.resolve(options.stateFile || process.env.LABEL_TEMPLATE_STATE_FILE || path.join(process.env.DATA_DIR || 'data', process.env.STATE_FILE || 'app-state.json'));
   const authorized = (req, res) => {
-    if (!apiKey || req.headers['x-api-key'] === apiKey) return true;
+    const candidate = typeof req.headers['x-api-key'] === 'string' ? req.headers['x-api-key'] : '';
+    const candidateBuffer = Buffer.from(candidate);
+    const apiKeyBuffer = Buffer.from(apiKey);
+    if (!apiKey || (candidateBuffer.length === apiKeyBuffer.length && timingSafeEqual(candidateBuffer, apiKeyBuffer))) return true;
     res.status(401).json({ error: 'Unauthorized' });
     return false;
   };

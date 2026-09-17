@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import Papa from 'papaparse';
-import { Download, Upload, Printer, List, LayoutTemplate, Settings, Eye, MapPin } from 'lucide-react';
+import { Upload, Printer, List, LayoutTemplate, Settings, Eye, MapPin, LogOut, LockKeyhole } from 'lucide-react';
 import { ColumnMapper } from './components/ColumnMapper';
 import { ValidationPreview } from './components/ValidationPreview';
 import { parseFile } from './lib/fileParser';
@@ -49,8 +49,59 @@ const DEFAULT_PRODUCT: ProductData = {
 
 export type AppView = 'dashboard' | 'mapping' | 'validation' | 'design' | 'preview' | 'locations' | 'settings';
 
+type AuthUser = {
+  id: string;
+  username: string;
+  role: string;
+  capabilities: { canView: boolean; canEdit: boolean; canAdmin: boolean };
+};
+
 export default function App() {
-  const [activeView, setActiveView] = useState<AppView>('dashboard');
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/auth/me', { headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(async (response) => response.ok ? (await response.json()).user as AuthUser : null)
+      .then((nextUser) => { if (!cancelled) setUser(nextUser); })
+      .catch(() => { if (!cancelled) setUser(null); })
+      .finally(() => { if (!cancelled) setAuthLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (authLoading) return <AuthShell><p className="text-sm text-slate-500">Oturum doğrulanıyor…</p></AuthShell>;
+  if (!user) return <LoginScreen onAuthenticated={setUser} />;
+  return <LabelWorkspace user={user} onLogout={async () => {
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    setUser(null);
+  }} />;
+}
+
+function AuthShell({ children }: { children: React.ReactNode }) {
+  return <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6"><div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-xl p-8"><div className="mb-6 flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center"><LockKeyhole size={20}/></div><div><h1 className="font-bold text-slate-900">DSDST Label Printer</h1><p className="text-xs text-slate-500">Panel kullanıcı hesabı</p></div></div>{children}</div></div>;
+}
+
+function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthUser) => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  return <AuthShell><form className="space-y-4" onSubmit={async (event) => {
+    event.preventDefault(); setLoading(true); setError('');
+    try {
+      const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.user) throw new Error(response.status === 429 ? 'Çok fazla deneme. Bir süre sonra tekrar deneyin.' : response.status === 403 ? 'Bu hesapta Label Printer erişim izni yok.' : 'Kullanıcı adı veya parola hatalı.');
+      onAuthenticated(body.user as AuthUser);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Giriş yapılamadı.'); }
+    finally { setLoading(false); }
+  }}><label className="block text-sm font-semibold text-slate-700">Kullanıcı adı<input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-indigo-500" /></label><label className="block text-sm font-semibold text-slate-700">Parola<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-normal outline-none focus:border-indigo-500" /></label>{error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}<button disabled={loading} className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 font-semibold text-white hover:bg-indigo-500 disabled:opacity-60">{loading ? 'Giriş yapılıyor…' : 'Giriş yap'}</button></form></AuthShell>;
+}
+
+function LabelWorkspace({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+  const canEdit = user.capabilities.canEdit;
+  const [activeView, setActiveView] = useState<AppView>(canEdit ? 'dashboard' : 'preview');
   const [designEditorType, setDesignEditorType] = useState<'product' | 'location'>('product');
   
   const [data, setData] = useState<ProductData[]>([]);
@@ -132,7 +183,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!hasLoadedPersistentState.current) return;
+    if (!hasLoadedPersistentState.current || !canEdit) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     setSaveStatus('saving');
@@ -156,7 +207,7 @@ export default function App() {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [data, settings, activeTemplate, locationTemplate]);
+  }, [data, settings, activeTemplate, locationTemplate, canEdit]);
 
   const loadExample = () => {
     const fields = ['sku','urunKodu','urunAdi','malzeme','tip','olcu','partiLot','paketIciAdet','paketNo','toplamPaket','urunAgirligi','kutuAgirligi','stokSayisi','lokasyon','not','printQty'];
@@ -285,30 +336,32 @@ export default function App() {
           </div>
 
           <nav className="flex items-center gap-1 ml-4 bg-slate-800 rounded-md p-1">
-             <button onClick={() => setActiveView('dashboard')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
+             {canEdit && <button onClick={() => setActiveView('dashboard')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'dashboard' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
                 <List size={16} /> Veri Yükle
-             </button>
-             <button onClick={() => setActiveView('design')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'design' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
+             </button>}
+             {canEdit && <button onClick={() => setActiveView('design')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'design' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
                 <LayoutTemplate size={16} /> Etiket Tasarla
-             </button>
+             </button>}
              <button onClick={() => setActiveView('preview')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'preview' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
                 <Eye size={16} /> Önizleme & PDF
              </button>
              <button onClick={() => setActiveView('locations')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'locations' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
                 <MapPin size={16} /> Lokasyon Etiketi
              </button>
-             <button onClick={() => setActiveView('settings')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'settings' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
+             {canEdit && <button onClick={() => setActiveView('settings')} className={cn("px-4 py-1.5 text-sm font-medium rounded-sm flex items-center gap-2 transition-colors", activeView === 'settings' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white hover:bg-slate-700')}>
                 <Settings size={16} /> Ayarlar
-             </button>
+             </button>}
           </nav>
         </div>
 
         <div className="flex items-center gap-3">
            <SaveStatusBadge status={saveStatus} />
-           <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-500 transition-colors shadow-sm">
+           {canEdit && <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-500 transition-colors shadow-sm">
              <Upload size={16} /> Yeni Liste Yükle
-           </button>
+           </button>}
            <input type="file" accept=".csv, .xlsx, .xls" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+           <span className="hidden xl:inline text-xs text-slate-300">{user.username}</span>
+           <button onClick={onLogout} title="Çıkış yap" className="p-2 text-slate-300 hover:text-white"><LogOut size={17}/></button>
         </div>
       </header>
 

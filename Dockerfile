@@ -2,7 +2,7 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY --chown=node:node package*.json ./
 RUN npm ci
 
 COPY . .
@@ -20,13 +20,17 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY --from=build /app/dist ./dist
-COPY server.mjs ./
-COPY warehouse-renderer.mjs ./
-COPY template-store.mjs ./
+COPY --chown=node:node --from=build /app/dist ./dist
+COPY --chown=node:node server.mjs ./
+COPY --chown=node:node warehouse-renderer.mjs ./
+COPY --chown=node:node template-store.mjs ./
+COPY --chown=node:node panel-auth.mjs ./
+COPY --chown=node:node login-rate-limit.mjs ./
 
 RUN mkdir -p /app/data && chown -R node:node /app
 
 EXPOSE 3000 3010
+
+USER node
 
 CMD ["node", "server.mjs"]

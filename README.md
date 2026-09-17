@@ -39,7 +39,7 @@ Uygulamanız varsayılan olarak `http://localhost:3000` adresinde çalışacakt�
 
 ## 🖥️ Sunucuda Kalıcı Çalıştırma
 
-Uygulama artık tek Express server üzerinden hem arayüzü hem de kalıcı kayıt API'sini sunar. Ürün listesi, aktif tasarım ve ayarlar varsayılan olarak `data/app-state.json` dosyasına kaydedilir.
+Uygulama tek Express server üzerinden hem arayüzü hem de kalıcı kayıt API'sini sunar. Ürün listesi, aktif tasarım ve ayarlar varsayılan olarak `data/app-state.json` dosyasına kaydedilir. Arayüze mevcut Panel hesabıyla giriş yapılır; Panel JWT'si JavaScript'e verilmez, `HttpOnly`, `SameSite=Strict` cookie içinde tutulur. `GET /api/state` için `labels:view`, `PUT /api/state` için `labels:edit` gerekir; `labels:admin` ikisini de kapsar ve Panel `admin` rolü tüm izinlere sahiptir.
 
 ```bash
 npm install
@@ -59,6 +59,7 @@ Sunucuda farklı port veya kayıt klasörü kullanmak için `.env` dosyasında `
 ### Docker ile Çalıştırma ve Güncelleme
 
 ```bash
+docker network create dsdst-internal # sunucuda yalnız ilk kurulumda
 docker compose up -d --build
 ```
 
@@ -158,6 +159,6 @@ API uçları:
 - `POST /api/v1/render` — `{ "purpose": "goods_receipt", "data": { ... } }` alır, PDF döndürür
 - Geriye uyumlu: `GET /api/v1/package-label/default-template`, `POST /api/v1/package-label/render`
 
-`LABEL_RENDERER_API_KEY` veya ana uygulamada `LABEL_API_KEY` tanımlıysa `x-api-key` zorunludur. Eski v1 state dosyaları açılışta bellekte güvenle normalize edilir; ilk kayıtta v2 biçimine atomik olarak yazılır. Eski `template`, `locationTemplate`, ürün ve ayar alanları korunur.
+`LABEL_RENDERER_API_KEY` production'da zorunludur; boşsa renderer başlamaz. Tüm `/api/v1/*` çağrılarında `x-api-key` gerekir. Eski v1 state dosyaları açılışta bellekte güvenle normalize edilir; ilk kayıtta v2 biçimine atomik olarak yazılır. Eski `template`, `locationTemplate`, ürün ve ayar alanları korunur.
 
-Docker Compose ikinci bir `warehouse-label-renderer` servisini host'un `3010` portunda açar. İki servis aynı `./data` state klasörünü kullanır; renderer salt-okur bağlar. Panel ayrı bir compose projesindeyse `LABEL_RENDERER_URL=http://host.docker.internal:3010` kullanın ve iki tarafta aynı `LABEL_RENDERER_API_KEY` değerini tanımlayın.
+Docker Compose renderer'ın `3010` portunu host'a yayınlamaz. `warehouse-label-renderer` yalnız harici `dsdst-internal` Docker ağı içinde `http://warehouse-label-renderer:3010` adıyla erişilir. Editör ve renderer aynı `./data` klasörünü kullanır; renderer bunu salt-okur bağlar. Panel ve Warehouse aynı ağa katılır ve aynı `LABEL_RENDERER_API_KEY` değerini kullanır. Container'lar non-root çalışır; root filesystem salt-okunur, yalnız kalıcı data mount'u ve sınırlı `/tmp` tmpfs yazılabilirdir.
