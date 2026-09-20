@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -31,10 +31,11 @@ test('Panel JWT HttpOnly cookie içinde kalır ve state izinleri view/edit olara
     res.json({ success: true, user: { id: token, username: token, role: token === 'admin' ? 'admin' : 'user', permissions, must_change_password: false } });
   });
   const panelServer = await listen(panel);
+  const labelStateFile = path.join(directory, 'state.json');
   const labelServer = await listen(createLabelPrinterApp({
     panelApiUrl: panelServer.baseUrl,
     cookieSecure: false,
-    stateFile: path.join(directory, 'state.json'),
+    stateFile: labelStateFile,
     distDir: directory,
   }));
 
@@ -63,6 +64,11 @@ test('Panel JWT HttpOnly cookie içinde kalır ve state izinleri view/edit olara
     });
     assert.equal(saved.status, 200);
     assert.equal((await saved.json()).products[0].sku, 'KEEP');
+
+    await writeFile(labelStateFile, JSON.stringify({ version: 999, products: [{ sku: 'MUST-NOT-DROP' }] }), 'utf8');
+    const corruptState = await fetch(`${labelServer.baseUrl}/api/state`, { headers: { cookie: editor.cookie } });
+    assert.equal(corruptState.status, 409);
+    assert.match((await corruptState.json()).error, /Unsupported label state version: 999/);
 
     const outsider = await login('outsider');
     assert.equal(outsider.response.status, 403);

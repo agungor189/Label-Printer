@@ -14,6 +14,12 @@ export const isTemplatePurpose = (value) => TEMPLATE_PURPOSES.includes(String(va
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+const stateReadError = (message, cause) => Object.assign(new Error(message, { cause }), {
+  code: 'LABEL_STATE_INVALID',
+  statusCode: 409,
+  publicMessage: message,
+});
+
 export function normalizeStoredTemplate(template, fallbackPurpose = 'custom') {
   if (!template || typeof template !== 'object' || !Array.isArray(template.elements)) return null;
   const purpose = isTemplatePurpose(template.purpose) ? template.purpose : fallbackPurpose;
@@ -60,6 +66,10 @@ function mergeTemplates(parsed, fallbacks = []) {
 }
 
 export function normalizeState(parsed = {}, fallbacks = []) {
+  const version = Number(parsed?.version);
+  if (version !== 1 && version !== 2) {
+    throw stateReadError(`Unsupported label state version: ${String(parsed?.version ?? 'missing')}`);
+  }
   const templates = mergeTemplates(parsed, fallbacks);
   const defaultFor = (purpose) => templates.find((template) => template.purpose === purpose && template.isDefault) || null;
   return {
@@ -75,11 +85,17 @@ export function normalizeState(parsed = {}, fallbacks = []) {
 
 export async function readTemplateState(stateFile, fallbacks = []) {
   try {
-    const parsed = JSON.parse(await fs.readFile(stateFile, 'utf8'));
+    const raw = await fs.readFile(stateFile, 'utf8');
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      throw stateReadError('Malformed label state JSON.', error);
+    }
     return normalizeState(parsed, fallbacks);
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
-    return normalizeState({}, fallbacks);
+    return normalizeState({ version: 2 }, fallbacks);
   }
 }
 

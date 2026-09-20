@@ -30,12 +30,7 @@ function normalizeTemplate(template) {
 }
 
 async function readState(targetStateFile = stateFile) {
-  try {
-    return { ...emptyState, ...(await readTemplateState(targetStateFile)) };
-  } catch (error) {
-    console.warn(`State read failed, returning safe defaults: ${error.message}`);
-    return { ...emptyState, ...(await readTemplateState(`${targetStateFile}.missing`)) };
-  }
+  return { ...emptyState, ...(await readTemplateState(targetStateFile)) };
 }
 
 async function writeState(nextState, targetStateFile = stateFile) {
@@ -105,7 +100,7 @@ app.get('*', async (_req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ error: 'Server error.' });
+  res.status(error?.statusCode || 500).json({ error: error?.publicMessage || 'Server error.' });
 });
 
 return app;
