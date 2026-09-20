@@ -53,6 +53,7 @@ const trustProxyHops = Number(options.trustProxyHops ?? process.env.TRUST_PROXY_
 if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
 const panelAuth = createPanelAuth({
   baseUrl: options.panelApiUrl,
+  apiKey: options.panelApiKey,
   fetchImpl: options.fetchImpl,
   cookieSecure: options.cookieSecure,
   timeoutMs: options.timeoutMs,

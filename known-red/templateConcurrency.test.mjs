@@ -22,14 +22,15 @@ test('KNOWN BUSINESS RED: a stale template writer receives an exact CAS conflict
   const directory = await mkdtemp(path.join(tmpdir(), 'label-cas-red-'));
   const panel = express();
   panel.use(express.json());
-  panel.post('/api/auth/login', (_req, res) => res.json({ token: 'editor-token', user: { username: 'editor' } }));
-  panel.get('/api/auth/me', (_req, res) => res.json({
+  panel.post('/api/auth/service/login', (_req, res) => res.json({ token: 'editor-token', user: { username: 'editor' } }));
+  panel.get('/api/auth/service/me', (_req, res) => res.json({
     success: true,
     user: { id: 'editor', username: 'editor', role: 'user', permissions: { 'labels:edit': true }, must_change_password: false },
   }));
   const panelServer = await listen(panel);
   const labelServer = await listen(createLabelPrinterApp({
     panelApiUrl: panelServer.baseUrl,
+    panelApiKey: 'label-known-red-service-key',
     cookieSecure: false,
     stateFile: path.join(directory, 'state.json'),
     distDir: directory,

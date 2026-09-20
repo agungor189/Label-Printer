@@ -21,19 +21,30 @@ const close = async (server) => {
 test('Panel JWT HttpOnly cookie içinde kalır ve state izinleri view/edit olarak ayrılır', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'label-auth-'));
   const panel = express();
+  const activeTokens = new Set();
   panel.use(express.json());
-  panel.post('/api/auth/login', (req, res) => res.json({ token: `token-${req.body.username}`, user: { username: req.body.username } }));
-  panel.get('/api/auth/me', (req, res) => {
+  panel.use('/api/auth/service', (req, res, next) => req.header('x-api-key') === 'label-service-secret' ? next() : res.status(401).json({ error: 'SERVICE_UNAUTHORIZED' }));
+  panel.post('/api/auth/service/login', (req, res) => {
+    activeTokens.add(`token-${req.body.username}`);
+    res.json({ token: `token-${req.body.username}`, user: { username: req.body.username } });
+  });
+  panel.get('/api/auth/service/me', (req, res) => {
+    if (!activeTokens.has(String(req.headers.authorization || '').replace('Bearer ', ''))) return res.status(401).json({ error: 'SESSION_INVALID' });
     const token = String(req.headers.authorization || '').replace('Bearer token-', '');
     const permissions = token === 'viewer' ? { 'labels:view': true }
       : token === 'editor' ? { 'labels:edit': true }
         : {};
     res.json({ success: true, user: { id: token, username: token, role: token === 'admin' ? 'admin' : 'user', permissions, must_change_password: false } });
   });
+  panel.post('/api/auth/service/logout', (req, res) => {
+    activeTokens.delete(String(req.headers.authorization || '').replace('Bearer ', ''));
+    res.json({ success: true });
+  });
   const panelServer = await listen(panel);
   const labelStateFile = path.join(directory, 'state.json');
   const labelServer = await listen(createLabelPrinterApp({
     panelApiUrl: panelServer.baseUrl,
+    panelApiKey: 'label-service-secret',
     cookieSecure: false,
     stateFile: labelStateFile,
     distDir: directory,
@@ -65,8 +76,15 @@ test('Panel JWT HttpOnly cookie içinde kalır ve state izinleri view/edit olara
     assert.equal(saved.status, 200);
     assert.equal((await saved.json()).products[0].sku, 'KEEP');
 
+    const loggedOut = await fetch(`${labelServer.baseUrl}/api/auth/logout`, { method: 'POST', headers: { cookie: editor.cookie } });
+    assert.equal(loggedOut.status, 204);
+    assert.match(loggedOut.headers.get('set-cookie') || '', /dsdst_label_session=;/);
+    assert.equal((await fetch(`${labelServer.baseUrl}/api/state`, { headers: { cookie: editor.cookie } })).status, 401);
+
+    const editorAgain = await login('editor');
+
     await writeFile(labelStateFile, JSON.stringify({ version: 999, products: [{ sku: 'MUST-NOT-DROP' }] }), 'utf8');
-    const corruptState = await fetch(`${labelServer.baseUrl}/api/state`, { headers: { cookie: editor.cookie } });
+    const corruptState = await fetch(`${labelServer.baseUrl}/api/state`, { headers: { cookie: editorAgain.cookie } });
     assert.equal(corruptState.status, 409);
     assert.match((await corruptState.json()).error, /Unsupported label state version: 999/);
 

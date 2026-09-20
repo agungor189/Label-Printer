@@ -43,6 +43,7 @@ function publicUser(user) {
 
 export function createPanelAuth(options = {}) {
   const baseUrl = String(options.baseUrl ?? process.env.PANEL_API_URL ?? '').replace(/\/$/, '');
+  const apiKey = String(options.apiKey ?? process.env.PANEL_API_KEY ?? '').trim();
   const fetchImpl = options.fetchImpl || fetch;
   const timeoutMs = options.timeoutMs ?? 8_000;
   const cookieOptions = {
@@ -53,11 +54,16 @@ export function createPanelAuth(options = {}) {
   };
 
   async function panelRequest(path, init = {}) {
-    if (!baseUrl) return { ok: false, status: 503, body: { error: 'PANEL_AUTH_NOT_CONFIGURED' } };
+    if (!baseUrl || !apiKey) return { ok: false, status: 503, body: { error: 'PANEL_AUTH_NOT_CONFIGURED' } };
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetchImpl(`${baseUrl}${path}`, { ...init, redirect: 'error', signal: controller.signal });
+      const response = await fetchImpl(`${baseUrl}${path}`, {
+        ...init,
+        redirect: 'error',
+        signal: controller.signal,
+        headers: { 'x-api-key': apiKey, ...(init.headers || {}) },
+      });
       const raw = await response.text();
       let body;
       try { body = JSON.parse(raw); } catch { body = {}; }
@@ -70,7 +76,7 @@ export function createPanelAuth(options = {}) {
   }
 
   async function meForToken(token) {
-    const result = await panelRequest('/api/auth/me', {
+    const result = await panelRequest('/api/auth/service/me', {
       method: 'GET',
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
@@ -101,7 +107,7 @@ export function createPanelAuth(options = {}) {
       const username = typeof req.body?.username === 'string' ? req.body.username.trim().slice(0, 254) : '';
       const password = typeof req.body?.password === 'string' ? req.body.password.slice(0, 1024) : '';
       if (!username || !password) return res.status(400).json({ error: 'VALIDATION_ERROR' });
-      const login = await panelRequest('/api/auth/login', {
+      const login = await panelRequest('/api/auth/service/login', {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -129,7 +135,15 @@ export function createPanelAuth(options = {}) {
       if (!userHasLabelPermission(result.user, 'labels:view')) return res.status(403).json({ error: 'FORBIDDEN', required: 'labels:view' });
       return res.json({ user: publicUser(result.user) });
     },
-    logout(_req, res) {
+    async logout(req, res) {
+      const token = readCookie(req, SESSION_COOKIE);
+      if (!token) return res.status(401).json({ error: 'SESSION_REQUIRED' });
+      const result = await panelRequest('/api/auth/service/logout', {
+        method: 'POST', headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+      });
+      if (!result.ok && result.status !== 401) {
+        return res.status(result.status >= 500 ? 502 : result.status).json({ error: result.status >= 500 ? 'PANEL_AUTH_UNAVAILABLE' : 'SESSION_INVALID' });
+      }
       res.clearCookie(SESSION_COOKIE, cookieOptions);
       return res.status(204).end();
     },
