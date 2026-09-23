@@ -66,4 +66,4 @@ export interface LabelTemplate {
   isDefault?: boolean;
 }
 
-export type LabelTemplatePurpose = 'goods_receipt' | 'location' | 'product_package' | 'kit' | 'shipping' | 'custom';
+export type LabelTemplatePurpose = 'goods_receipt' | 'location' | 'custom';

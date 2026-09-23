@@ -71,7 +71,7 @@ test('Panel JWT HttpOnly cookie içinde kalır ve state izinleri view/edit olara
     const editor = await login('editor');
     assert.equal(editor.response.status, 200);
     const saved = await fetch(`${labelServer.baseUrl}/api/state`, {
-      method: 'PUT', headers: { cookie: editor.cookie, 'content-type': 'application/json' }, body: JSON.stringify({ products: [{ sku: 'KEEP' }] }),
+      method: 'PUT', headers: { cookie: editor.cookie, 'content-type': 'application/json', 'if-match': '0' }, body: JSON.stringify({ revision: 0, products: [{ sku: 'KEEP' }] }),
     });
     assert.equal(saved.status, 200);
     assert.equal((await saved.json()).products[0].sku, 'KEEP');

@@ -14,12 +14,14 @@ const stateFile = path.resolve(dataDir, process.env.STATE_FILE || 'app-state.jso
 const distDir = path.resolve(__dirname, 'dist');
 
 const emptyState = {
-  version: 2,
+  version: 3,
+  revision: 0,
   products: [],
   settings: null,
   template: null,
   locationTemplate: null,
   templates: [],
+  templateVersions: [],
   updatedAt: null,
 };
 
@@ -33,16 +35,16 @@ async function readState(targetStateFile = stateFile) {
   return { ...emptyState, ...(await readTemplateState(targetStateFile)) };
 }
 
-async function writeState(nextState, targetStateFile = stateFile) {
+async function writeState(nextState, targetStateFile = stateFile, expectedRevision) {
   return writeTemplateState(targetStateFile, {
-    version: 2,
+    version: 3,
     products: Array.isArray(nextState.products) ? nextState.products : [],
     settings: nextState.settings && typeof nextState.settings === 'object' ? nextState.settings : null,
     template: normalizeTemplate(nextState.template),
     locationTemplate: normalizeTemplate(nextState.locationTemplate),
     templates: Array.isArray(nextState.templates) ? nextState.templates : undefined,
     updatedAt: new Date().toISOString(),
-  });
+  }, [], { expectedRevision });
 }
 
 export function createLabelPrinterApp(options = {}) {
@@ -82,7 +84,11 @@ app.put('/api/state', panelAuth.requirePermission('labels:edit'), async (req, re
       res.status(400).json({ error: 'Invalid state payload.' });
       return;
     }
-    res.json(await writeState(req.body, appStateFile));
+    const expectedRevision = Number(req.header('if-match') ?? req.body.revision);
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+      return res.status(428).json({ error: 'If-Match template revision is required.' });
+    }
+    res.json(await writeState(req.body, appStateFile, expectedRevision));
   } catch (error) {
     next(error);
   }

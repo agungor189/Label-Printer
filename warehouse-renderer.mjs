@@ -6,31 +6,31 @@ import QRCode from 'qrcode';
 import path from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { findDefaultTemplate, isTemplatePurpose, listTemplates, readTemplateState } from './template-store.mjs';
+import { assertWarehouseTemplateContract, findDefaultTemplate, findTemplateVersion, isTemplatePurpose, listTemplates, readTemplateState, templateContentHash } from './template-store.mjs';
 
 const MAX_BODY_BYTES = '2mb';
 const MAX_ELEMENTS = 100;
 
 export const PACKAGE_LABEL_TEMPLATE = {
-  id: 'warehouse-package-150x100-v1',
+  id: 'warehouse-package-100x150-v1',
   name: 'DSDST Depo Paket Etiketi',
   purpose: 'goods_receipt',
   isDefault: true,
-  width: 150,
-  height: 100,
+  width: 100,
+  height: 150,
   elements: [
-    { id: 'border', type: 'box', x: 2, y: 2, width: 146, height: 96, borderWidth: 0.6 },
-    { id: 'brand', type: 'text', x: 7, y: 6, width: 48, height: 8, value: 'DSDST WAREHOUSE', fontSize: 5, fontWeight: 'black' },
-    { id: 'package-code', type: 'text', x: 58, y: 5, width: 84, height: 11, value: '{Package_code}', fontSize: 7, fontWeight: 'black', textAlign: 'right' },
-    { id: 'product-name', type: 'text', x: 7, y: 20, width: 135, height: 15, value: '{Urun_adi}', fontSize: 6, fontWeight: 'bold' },
-    { id: 'sku-label', type: 'text', x: 7, y: 39, width: 55, height: 7, value: 'SKU: {SKU}', fontSize: 4, fontWeight: 'bold' },
-    { id: 'lot', type: 'text', x: 66, y: 39, width: 76, height: 7, value: 'LOT: {Parti_Lot}', fontSize: 4, textAlign: 'right' },
-    { id: 'supplier', type: 'text', x: 7, y: 46, width: 70, height: 6, value: 'TEDARIK: {Supplier_no}', fontSize: 3.5, fontWeight: 'bold' },
-    { id: 'size-weight', type: 'text', x: 79, y: 46, width: 63, height: 6, value: '{Olcu} · {Kutu_agirligi} kg', fontSize: 3.5, textAlign: 'right' },
-    { id: 'count', type: 'text', x: 7, y: 53, width: 60, height: 8, value: 'ADET: {Paket_ici_adet}', fontSize: 5, fontWeight: 'black' },
-    { id: 'ordinal', type: 'text', x: 76, y: 53, width: 66, height: 8, value: 'PAKET {Paket_no}', fontSize: 5, fontWeight: 'black', textAlign: 'right' },
-    { id: 'package-barcode', type: 'barcode', x: 7, y: 64, width: 96, height: 27, value: '{Package_code}', showBarcodeText: true },
-    { id: 'package-qr', type: 'qr', x: 113, y: 64, width: 27, height: 27, value: '{Package_code}' },
+    { id: 'border', type: 'box', x: 2, y: 2, width: 96, height: 146, borderWidth: 0.6 },
+    { id: 'brand', type: 'text', x: 6, y: 6, width: 88, height: 8, value: 'DSDST DEPO KABUL', fontSize: 6, fontWeight: 'black', textAlign: 'center' },
+    { id: 'product-name', type: 'text', x: 6, y: 18, width: 88, height: 18, value: '{Urun_adi}', fontSize: 6, fontWeight: 'bold', textAlign: 'center' },
+    { id: 'sku-label', type: 'text', x: 6, y: 39, width: 88, height: 10, value: 'SKU: {SKU}', fontSize: 6, fontWeight: 'black', textAlign: 'center' },
+    { id: 'supplier', type: 'text', x: 6, y: 53, width: 88, height: 7, value: 'TEDARIK: {Supplier_no}', fontSize: 3.5, fontWeight: 'bold' },
+    { id: 'material-size', type: 'text', x: 6, y: 62, width: 88, height: 7, value: '{Malzeme} · {Tip} · {Olcu}', fontSize: 3.5 },
+    { id: 'lot', type: 'text', x: 6, y: 71, width: 88, height: 7, value: 'LOT: {Parti_Lot}', fontSize: 3.5 },
+    { id: 'count', type: 'text', x: 6, y: 80, width: 42, height: 8, value: 'ADET: {Paket_ici_adet}', fontSize: 4.5, fontWeight: 'black' },
+    { id: 'ordinal', type: 'text', x: 52, y: 80, width: 42, height: 8, value: 'PAKET {Paket_no}', fontSize: 4.5, fontWeight: 'black', textAlign: 'right' },
+    { id: 'weight', type: 'text', x: 6, y: 91, width: 88, height: 7, value: '{Urun_agirligi} · {Kutu_agirligi}', fontSize: 3.5, textAlign: 'center' },
+    { id: 'package-barcode', type: 'barcode', x: 7, y: 105, width: 86, height: 34, value: '{SKU}', showBarcodeText: true },
+    { id: 'package-code', type: 'text', x: 6, y: 141, width: 88, height: 5, value: '{Package_code}', fontSize: 3, textAlign: 'center' },
   ],
 };
 
@@ -280,15 +280,26 @@ export function createWarehouseRendererApp(options = {}) {
       if (!isTemplatePurpose(purpose)) return res.status(400).json({ error: 'Geçersiz template purpose.' });
       const state = await loadState();
       const requestedId = text(req.body?.templateId, 100);
-      const template = requestedId
-        ? state.templates.find((item) => item.id === requestedId && item.purpose === purpose)
+      const requestedVersion = Number(req.body?.templateVersion);
+      const requestedHash = text(req.body?.templateContentHash, 64);
+      const suppliedSnapshot = req.body?.templateSnapshot;
+      const template = suppliedSnapshot
+        ? (templateContentHash(suppliedSnapshot) === requestedHash ? suppliedSnapshot : null)
+        : requestedId && requestedVersion && requestedHash
+          ? findTemplateVersion(state, requestedId, requestedVersion, requestedHash)
+          : requestedId
+            ? state.templates.find((item) => item.id === requestedId && item.purpose === purpose)
         : findDefaultTemplate(state, purpose);
       if (!template) return res.status(404).json({ error: `${purpose} için şablon bulunamadı.` });
+      if (template.purpose !== purpose) return res.status(409).json({ error: 'Şablon purpose eşleşmiyor.' });
+      assertWarehouseTemplateContract(template);
       const pdf = await renderWarehouseLabelPdf({ template, data: req.body?.data });
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="${purpose}-label.pdf"`);
       res.setHeader('X-Label-Template-Id', template.id);
       res.setHeader('X-Label-Template-Purpose', template.purpose);
+      res.setHeader('X-Label-Template-Version', String(template.version || 1));
+      res.setHeader('X-Label-Template-Content-Hash', template.contentHash || templateContentHash(template));
       return res.send(pdf);
     } catch (error) {
       return res.status(400).json({ error: error instanceof Error ? error.message : 'PDF oluşturulamadı.' });

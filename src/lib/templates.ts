@@ -1,6 +1,6 @@
 import { LabelTemplate } from './types';
 
-// Default DSDST DEPO KABUL label — 150 × 100 mm (landscape)
+// Legacy layout retained as the source geometry for the accepted 100 × 150 mm version.
 // Layout matches the production mockup:
 //   - Header: "DSDST DEPO KABUL" + "Bağlantı Elemanları"; QR top-right
 //   - SKU row with bold "SKU" tab + large value
@@ -9,7 +9,7 @@ import { LabelTemplate } from './types';
 //   - Row: Stok Sayısı | Kutu Adedi | Kutu İçi Adet
 //   - Row: Ürün Ağırlığı | Kutu Ağırlığı | Parti / Lot | Paket No
 //   - Bottom: Barcode + readable SKU
-export const DEFAULT_TEMPLATE: LabelTemplate = {
+const LEGACY_DEFAULT_TEMPLATE: LabelTemplate = {
   id: 'dsdst_depo_kabul',
   name: 'DSDST Depo Kabul (150×100)',
   purpose: 'goods_receipt',
@@ -90,12 +90,27 @@ export const DEFAULT_TEMPLATE: LabelTemplate = {
   ],
 };
 
+export const DEFAULT_TEMPLATE: LabelTemplate = {
+  ...LEGACY_DEFAULT_TEMPLATE,
+  id: 'dsdst_depo_kabul_100x150',
+  name: 'DSDST Depo Kabul (100×150)',
+  width: 100,
+  height: 150,
+  elements: LEGACY_DEFAULT_TEMPLATE.elements.map((element) => ({
+    ...element,
+    x: element.x * (2 / 3),
+    y: element.y * 1.5,
+    width: element.width * (2 / 3),
+    height: element.height * 1.5,
+  })),
+};
+
 export const MINIMAL_TEMPLATE: LabelTemplate = {
   id: 'minimal',
   name: 'Minimal Etiket',
   purpose: 'goods_receipt',
   width: 100,
-  height: 100,
+  height: 150,
   elements: [
     { id: 'adi', type: 'text', x: 5, y: 10, width: 90, height: 12, value: '{Urun_adi}', fontSize: 4.5, fontWeight: 'bold', textAlign: 'center' },
     { id: 'olcu', type: 'text', x: 5, y: 23, width: 90, height: 5, value: '{Olcu}  |  {Malzeme}', fontSize: 3, textAlign: 'center' },
@@ -126,7 +141,7 @@ export const LARGE_BARCODE_TEMPLATE: LabelTemplate = {
   name: 'Büyük Barkod Etiketi',
   purpose: 'goods_receipt',
   width: 100,
-  height: 100,
+  height: 150,
   elements: [
     { id: 'head', type: 'text', x: 5, y: 5, width: 60, height: 5, value: 'DEPO YERLEŞTİRME', fontSize: 3.5, fontWeight: 'bold' },
     { id: 'lok', type: 'text', x: 65, y: 5, width: 30, height: 5, value: 'LOK: {Lokasyon}', fontSize: 3.5, fontWeight: 'black', textAlign: 'right' },
@@ -144,7 +159,7 @@ export const QR_TECHNICAL_TEMPLATE: LabelTemplate = {
   name: 'QR Ağırlıklı Teknik Etiket',
   purpose: 'goods_receipt',
   width: 100,
-  height: 100,
+  height: 150,
   elements: [
     { id: 'qr_big', type: 'qr', x: 5, y: 5, width: 45, height: 45, value: '{ALL_INFO}' },
     { id: 'sk', type: 'text', x: 55, y: 5, width: 40, height: 6, value: 'SKU: {SKU}', fontSize: 4, fontWeight: 'black' },

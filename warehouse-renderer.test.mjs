@@ -3,8 +3,33 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { createWarehouseRendererApp, PACKAGE_LABEL_TEMPLATE, renderWarehouseLabelPdf, replaceWarehouseVariables } from './warehouse-renderer.mjs';
+import { createWarehouseRendererApp, LOCATION_LABEL_TEMPLATE, PACKAGE_LABEL_TEMPLATE, renderWarehouseLabelPdf, replaceWarehouseVariables } from './warehouse-renderer.mjs';
 import { readTemplateState, writeTemplateState } from './template-store.mjs';
+
+test('V2-14 locked label contracts use 100x150 SKU Code128 and 100x50 canonical location Code128', () => {
+  assert.deepEqual([PACKAGE_LABEL_TEMPLATE.width, PACKAGE_LABEL_TEMPLATE.height], [100, 150]);
+  assert.equal(PACKAGE_LABEL_TEMPLATE.purpose, 'goods_receipt');
+  assert.equal(PACKAGE_LABEL_TEMPLATE.elements.find((item) => item.type === 'barcode')?.value, '{SKU}');
+  assert.deepEqual([LOCATION_LABEL_TEMPLATE.width, LOCATION_LABEL_TEMPLATE.height], [100, 50]);
+  assert.equal(LOCATION_LABEL_TEMPLATE.elements.find((item) => item.type === 'barcode')?.value, '{Lokasyon}');
+});
+
+test('renderer rejects KIT, product-package, and redesigned shipping labels', async () => {
+  const server = createWarehouseRendererApp({ nodeEnv: 'test' }).listen(0, '127.0.0.1');
+  await new Promise((resolve) => server.once('listening', resolve));
+  const { port } = server.address();
+  try {
+    for (const purpose of ['kit', 'product_package', 'shipping']) {
+      const response = await fetch(`http://127.0.0.1:${port}/api/v1/render`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ purpose, data: { SKU: 'SKU-1' } }),
+      });
+      assert.equal(response.status, 400);
+    }
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
 
 test('paket değişkenlerini aynı şablon modeliyle doldurur', () => {
   assert.equal(replaceWarehouseVariables('{Package_code} · {SKU} · {Supplier_no} · {Paket_no}/{Toplam_paket}', {
@@ -70,11 +95,11 @@ test('purpose API diskteki son kaydedilmiş varsayılan şablonu deploy gerektir
 test('v1 state migration ürünleri silmeden template ve locationTemplate alanlarını purpose kayıtlarına taşır', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'label-printer-migration-'));
   const stateFile = path.join(directory, 'state.json');
-  const locationTemplate = { id: 'legacy-location', name: 'Eski Raf', width: 100, height: 50, elements: [{ id: 'l', type: 'text', x: 0, y: 0, width: 10, height: 5, value: '{Lokasyon}' }] };
+  const locationTemplate = { id: 'legacy-location', name: 'Eski Raf', width: 100, height: 50, elements: [{ id: 'l', type: 'barcode', x: 0, y: 0, width: 90, height: 20, value: '{Lokasyon}' }] };
   await writeFile(stateFile, JSON.stringify({ version: 1, products: [{ sku: 'KEEP-ME' }], template: PACKAGE_LABEL_TEMPLATE, locationTemplate }));
   try {
     const migrated = await writeTemplateState(stateFile, await readTemplateState(stateFile));
-    assert.equal(migrated.version, 2);
+    assert.equal(migrated.version, 3);
     assert.equal(migrated.products[0].sku, 'KEEP-ME');
     assert.equal(migrated.templates.find((item) => item.id === PACKAGE_LABEL_TEMPLATE.id).purpose, 'goods_receipt');
     assert.equal(migrated.templates.find((item) => item.id === 'legacy-location').purpose, 'location');

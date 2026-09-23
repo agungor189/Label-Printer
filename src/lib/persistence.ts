@@ -3,6 +3,7 @@ import { sanitizeLabelTemplate } from './templateSafety';
 
 export interface PersistedAppState {
   version: number;
+  revision: number;
   products: ProductData[];
   settings: LabelSettings | null;
   template: LabelTemplate | null;
@@ -14,6 +15,7 @@ export interface PersistedAppState {
 export type SaveStatus = 'loading' | 'saving' | 'saved' | 'offline' | 'error';
 
 const LOCAL_STATE_KEY = 'label_printer_persistent_state_v1';
+let lastServerRevision = 0;
 
 function isJsonResponse(response: Response): boolean {
   return (response.headers.get('content-type') || '').includes('application/json');
@@ -24,6 +26,7 @@ function normalizeState(state: any, source: PersistedAppState['source']): Persis
 
   return {
     version: Number(state.version) || 1,
+    revision: Math.max(0, Number(state.revision) || 0),
     products: Array.isArray(state.products) ? state.products : [],
     settings: state.settings && typeof state.settings === 'object' ? state.settings : null,
     template: state.template && typeof state.template === 'object' ? sanitizeLabelTemplate(state.template) : null,
@@ -51,6 +54,7 @@ function saveLocalState(state: Pick<PersistedAppState, 'products' | 'settings' |
   try {
     window.localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify({
       version: 2,
+      revision: lastServerRevision,
       products: state.products,
       settings: state.settings,
       template: state.template ? sanitizeLabelTemplate(state.template) : null,
@@ -79,6 +83,7 @@ export async function loadPersistentState(): Promise<PersistedAppState | null> {
 
     const state = await response.json();
     const serverState = normalizeState(state, 'server');
+    if (serverState) lastServerRevision = serverState.revision;
 
     if (!hasMeaningfulState(serverState) && hasMeaningfulState(localState)) {
       return localState;
@@ -96,16 +101,22 @@ export async function savePersistentState(state: Pick<PersistedAppState, 'produc
   try {
     const response = await fetch('/api/state', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'If-Match': String(lastServerRevision) },
       body: JSON.stringify({
-        version: 2,
+        version: 3,
+        revision: lastServerRevision,
         products: state.products,
         settings: state.settings,
         template: state.template ? sanitizeLabelTemplate(state.template) : null,
         locationTemplate: state.locationTemplate ? sanitizeLabelTemplate(state.locationTemplate) : null,
       }),
     });
-    return response.ok ? 'saved' : (savedLocal ? 'offline' : 'error');
+    if (response.ok && isJsonResponse(response)) {
+      const saved = await response.json();
+      lastServerRevision = Math.max(0, Number(saved.revision) || lastServerRevision);
+      return 'saved';
+    }
+    return savedLocal ? 'offline' : 'error';
   } catch {
     return savedLocal ? 'offline' : 'error';
   }
