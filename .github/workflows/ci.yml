@@ -3,13 +3,15 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, codex/purchasing-landed-cost]
 
 permissions:
   contents: read
 
 jobs:
   quality:
+    # This development-branch push is a focused container verification only.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +27,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=critical
 
   secret-scan:
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +47,50 @@ jobs:
           context: .
           load: true
           tags: label-printer:ci
+      - name: Verify isolated editor and renderer startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            docker logs label-editor-ci || true
+            docker logs label-renderer-ci || true
+            docker rm -f label-editor-ci label-renderer-ci || true
+          }
+          trap cleanup EXIT
+          runtime_args=(--detach --read-only --network none --cap-drop ALL
+            --security-opt no-new-privileges
+            --tmpfs /app/data:rw,noexec,nosuid,size=16m,uid=1000,gid=1000,mode=0700
+            --env DATA_DIR=/app/data --env STATE_FILE=ci-state.json)
+          docker run "${runtime_args[@]}" --name label-editor-ci \
+            --env PANEL_API_URL=http://127.0.0.1:9 \
+            label-printer:ci
+          docker run "${runtime_args[@]}" --name label-renderer-ci \
+            --env LABEL_TEMPLATE_STATE_FILE=/app/data/ci-state.json \
+            --env LABEL_RENDERER_API_KEY=isolated-ci-renderer-key \
+            label-printer:ci node warehouse-renderer.mjs
+          for target in 'label-editor-ci 3000 /api/health' 'label-renderer-ci 3010 /health'; do
+            read -r container port endpoint <<< "$target"
+            healthy=false
+            for attempt in {1..30}; do
+              if docker exec "$container" node --input-type=module -e '
+                const response = await fetch(process.argv[1]);
+                const body = await response.json();
+                if (!response.ok || body.ok !== true || body.stateFile !== "/app/data/ci-state.json") process.exit(1);
+                console.log(JSON.stringify(body));
+              ' "http://127.0.0.1:${port}${endpoint}"; then
+                healthy=true
+                break
+              fi
+              if [ "$(docker inspect --format '{{.State.Running}}' "$container")" != true ]; then break; fi
+              sleep 1
+            done
+            if [ "$healthy" != true ]; then
+              echo "Startup/health check failed: $container $endpoint" >&2
+              exit 1
+            fi
+          done
       - uses: aquasecurity/trivy-action@v0.36.0
+        if: github.event_name != 'push' || github.ref == 'refs/heads/main'
         with:
           image-ref: label-printer:ci
           format: table
