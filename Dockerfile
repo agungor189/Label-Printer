@@ -26,6 +26,7 @@ RUN npm ci --omit=dev && npm cache clean --force \
 COPY --chown=node:node --from=build /app/dist ./dist
 COPY --chown=node:node server.mjs ./
 COPY --chown=node:node warehouse-renderer.mjs ./
+COPY --chown=node:node package-identity-template.mjs ./
 COPY --chown=node:node template-store.mjs ./
 COPY --chown=node:node panel-auth.mjs ./
 COPY --chown=node:node login-rate-limit.mjs ./
