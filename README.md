@@ -162,3 +162,18 @@ API uçları:
 `LABEL_RENDERER_API_KEY` production'da zorunludur; boşsa renderer başlamaz. Tüm `/api/v1/*` çağrılarında `x-api-key` gerekir. Eski v1 state dosyaları açılışta bellekte güvenle normalize edilir; ilk kayıtta v2 biçimine atomik olarak yazılır. Eski `template`, `locationTemplate`, ürün ve ayar alanları korunur.
 
 Docker Compose renderer'ın `3010` portunu host'a yayınlamaz. `warehouse-label-renderer` yalnız harici `dsdst-internal` Docker ağı içinde `http://warehouse-label-renderer:3010` adıyla erişilir. Editör ve renderer aynı `./data` klasörünü kullanır; renderer bunu salt-okur bağlar. Panel ve Warehouse aynı ağa katılır ve aynı `LABEL_RENDERER_API_KEY` değerini kullanır. Container'lar non-root çalışır; root filesystem salt-okunur, yalnız kalıcı data mount'u ve sınırlı `/tmp` tmpfs yazılabilirdir.
+
+
+### Paket kimliği sözleşmesi (100×150 mm)
+
+Yeni paketler için `GET /api/v1/templates/default?purpose=goods_receipt&contract=package_identity`
+ve aynı `contract` ile `/api/v1/render` kullanılır. L'nin
+`dsdst-package-identity-100x150-v1` şablonu Code128 olarak `{Package_code}` basar;
+SKU, tedarik no, ürün/ölçü, adet, lot, satın alma ve kaynak koli ayrı alanlardır.
+Şablon tasarım editöründe hazır seçenek olarak bulunur; kayıtlar normal sürüm/CAS
+akışını kullanır. Kaynak dosya `package-identity-template.mjs` ortak şablondur.
+P onaylı plan veya fiziksel paket verisini sağlar; L stok/plan/mal kabul oluşturmaz.
+Adet değişince P yeni değişmez etiket sürümü oluşturur, paket kimliği sabit kalır.
+Paket kimliği eksikse SKU'ya düşülmez. Yeni sözleşmenin PDF çıktısı aynı girdide
+aynıdır. Eski SKU şablonlarının kimliği/sürümü, geçmiş baskı snapshot'ları ve
+100×50 lokasyon sözleşmesi korunur. Bu geliştirme gerçek baskı/deploy yapmaz.

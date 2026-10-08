@@ -1,6 +1,9 @@
 export interface ProductData {
   id?: string;
   packageCode?: string;
+  purchaseNumber?: string;
+  sourceCarton?: string;
+  productType?: string;
   supplierNo?: string;
   sku: string;
   urunKodu: string;

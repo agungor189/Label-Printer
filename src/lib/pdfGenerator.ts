@@ -3,7 +3,7 @@ import jsPDF from 'jspdf';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import { LabelElement, LabelTemplate, ProductData, LabelSettings } from './types';
-import { QR_QUIET_ZONE_MODULES, replaceVariables, resolveQrValue } from './labelRenderer';
+import { QR_QUIET_ZONE_MODULES, replaceVariables, resolveBarcodeValue, resolveQrValue } from './labelRenderer';
 import { drawTextInBox } from './pdfText';
 import { preloadPdfFonts, registerPdfFonts } from './pdfFont';
 import { sanitizeLabelTemplate } from './templateSafety';
@@ -61,7 +61,8 @@ function drawLine(pdf: jsPDF, el: LabelElement) {
 }
 
 function drawBarcode(pdf: jsPDF, el: LabelElement, product: ProductData, settings: LabelSettings) {
-  const value = replaceVariables(el.value || '', product, settings) || product.sku || ' ';
+  const value = resolveBarcodeValue(el.value || '', product, settings);
+  if (!value) throw new Error('Barkod için paket kimliği gerekli.');
   const showText = el.showBarcodeText !== false;
 
   // Reserve a small strip at the bottom for the readable value so the bitmap

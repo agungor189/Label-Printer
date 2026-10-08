@@ -1,3 +1,4 @@
+import { PACKAGE_IDENTITY_TEMPLATE } from '../../package-identity-template.mjs';
 import { LabelTemplate } from './types';
 
 // Legacy layout retained as the source geometry for the accepted 100 × 150 mm version.
@@ -175,6 +176,7 @@ export const QR_TECHNICAL_TEMPLATE: LabelTemplate = {
 };
 
 export const TEMPLATES = [
+  PACKAGE_IDENTITY_TEMPLATE,
   DEFAULT_TEMPLATE,
   MINIMAL_TEMPLATE,
   LARGE_BARCODE_TEMPLATE,

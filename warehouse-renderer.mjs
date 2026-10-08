@@ -1,10 +1,11 @@
+import { PACKAGE_IDENTITY_TEMPLATE } from './package-identity-template.mjs';
 import 'dotenv/config';
 import express from 'express';
 import { jsPDF } from 'jspdf';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import path from 'node:path';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { assertWarehouseTemplateContract, findDefaultTemplate, findTemplateVersion, isTemplatePurpose, listTemplates, readTemplateState, templateContentHash } from './template-store.mjs';
 
@@ -47,7 +48,16 @@ export const LOCATION_LABEL_TEMPLATE = {
   ],
 };
 
-const FALLBACK_TEMPLATES = [PACKAGE_LABEL_TEMPLATE, LOCATION_LABEL_TEMPLATE];
+const selectTemplate = (state, purpose, contract) => {
+  if (!contract) return findDefaultTemplate(state, purpose);
+  if (contract !== 'package_identity' || purpose !== 'goods_receipt') return null;
+  const matching = state.templates.filter(t => t.purpose === purpose && t.width === 100 && t.height === 150
+    && t.elements.filter(e => e.type === 'barcode').length === 1
+    && t.elements.some(e => e.type === 'barcode' && e.value === '{Package_code}'));
+  return matching.find(t => t.isDefault) || matching.find(t => t.id === PACKAGE_IDENTITY_TEMPLATE.id) || matching[0] || null;
+};
+
+const FALLBACK_TEMPLATES = [PACKAGE_LABEL_TEMPLATE, PACKAGE_IDENTITY_TEMPLATE, LOCATION_LABEL_TEMPLATE];
 
 const text = (value, max = 500) => String(value ?? '').trim().slice(0, max);
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -61,6 +71,9 @@ export function normalizeLabelData(input = {}) {
   };
   return {
     packageCode: value('packageCode', 'Package_code', 'package_code'),
+    purchaseNumber: value('purchaseNumber', 'Satin_alma_no'),
+    sourceCarton: value('sourceCarton', 'Kaynak_koli'),
+    productType: value('productType', 'Tur'),
     sku: value('sku', 'SKU'),
     urunKodu: value('urunKodu', 'Urun_kodu', 'urun_kodu'),
     supplierNo: value('supplierNo', 'Supplier_no', 'supplier_no'),
@@ -84,6 +97,9 @@ export function replaceWarehouseVariables(value, productInput) {
   const product = normalizeLabelData(productInput);
   const values = {
     Package_code: product.packageCode,
+    Satin_alma_no: product.purchaseNumber,
+    Kaynak_koli: product.sourceCarton,
+    Tur: product.productType,
     SKU: product.sku,
     Urun_kodu: product.urunKodu,
     Supplier_no: product.supplierNo,
@@ -156,7 +172,7 @@ function drawText(pdf, element, product) {
 }
 
 function drawBarcode(pdf, element, product) {
-  const value = replaceWarehouseVariables(element.value, product) || text(product.packageCode) || text(product.sku);
+  const value = element.value === '{Package_code}' ? text(product.packageCode) : replaceWarehouseVariables(element.value, product) || text(product.packageCode) || text(product.sku);
   if (!value) throw new Error('Barkod değeri boş olamaz.');
   const target = {};
   JsBarcode(target, value, { format: 'CODE128', displayValue: false, margin: 0 });
@@ -197,6 +213,10 @@ export async function renderWarehouseLabelPdf(payload) {
   }
   const orientation = template.width > template.height ? 'landscape' : 'portrait';
   const pdf = new jsPDF({ orientation, unit: 'mm', format: [template.width, template.height], compress: true });
+  if (template.elements.some(e => e.type === 'barcode' && e.value === '{Package_code}')) {
+    pdf.setCreationDate(new Date('2000-01-01T00:00:00Z'));
+    pdf.setFileId(createHash('sha256').update(JSON.stringify({ template, product })).digest('hex').slice(0, 32));
+  }
   const ordered = [
     ...template.elements.filter((element) => element.visible !== false && ['box', 'line'].includes(element.type)),
     ...template.elements.filter((element) => element.visible !== false && !['box', 'line'].includes(element.type)),
@@ -249,7 +269,7 @@ export function createWarehouseRendererApp(options = {}) {
     if (!authorized(req, res)) return;
     const purpose = String(req.query.purpose || 'goods_receipt');
     if (!isTemplatePurpose(purpose)) return res.status(400).json({ error: 'Geçersiz template purpose.' });
-    const template = findDefaultTemplate(await loadState(), purpose);
+    const template = selectTemplate(await loadState(), purpose, req.query.contract);
     return template ? res.json(template) : res.status(404).json({ error: 'Varsayılan şablon bulunamadı.' });
   });
   app.get('/api/v1/templates/:id', async (req, res) => {
@@ -289,7 +309,7 @@ export function createWarehouseRendererApp(options = {}) {
           ? findTemplateVersion(state, requestedId, requestedVersion, requestedHash)
           : requestedId
             ? state.templates.find((item) => item.id === requestedId && item.purpose === purpose)
-        : findDefaultTemplate(state, purpose);
+        : selectTemplate(state, purpose, req.body?.contract);
       if (!template) return res.status(404).json({ error: `${purpose} için şablon bulunamadı.` });
       if (template.purpose !== purpose) return res.status(409).json({ error: 'Şablon purpose eşleşmiyor.' });
       assertWarehouseTemplateContract(template);

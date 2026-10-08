@@ -29,7 +29,7 @@ export function assertWarehouseTemplateContract(template) {
     : { width: 100, height: 50, barcode: '{Lokasyon}' };
   const barcodes = Array.isArray(template?.elements) ? template.elements.filter((element) => element?.type === 'barcode') : [];
   if (Number(template?.width) !== expected.width || Number(template?.height) !== expected.height
-    || barcodes.length !== 1 || barcodes[0]?.value !== expected.barcode) {
+    || barcodes.length !== 1 || !(purpose === 'goods_receipt' ? ['{SKU}', '{Package_code}'] : [expected.barcode]).includes(barcodes[0]?.value)) {
     throw stateError(`${purpose} template must be ${expected.width}x${expected.height} mm with one Code128 ${expected.barcode} barcode.`, 'TEMPLATE_CONTRACT_MISMATCH', 400);
   }
 }

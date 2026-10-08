@@ -7,7 +7,7 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:local": "vite --port=6060 --host=0.0.0.0",
     "build": "vite build",
-    "test": "tsx --test src/lib/locationLabels.test.ts warehouse-renderer.test.mjs server-auth.test.mjs schema-baseline.test.mjs",
+    "test": "tsx --test src/lib/locationLabels.test.ts src/lib/packageIdentity.test.ts warehouse-renderer.test.mjs server-auth.test.mjs schema-baseline.test.mjs",
     "test:known-red": "tsx --test known-red/*.test.mjs",
     "start": "node server.mjs",
     "server": "node server.mjs",

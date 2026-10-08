@@ -28,6 +28,9 @@ export function replaceVariables(text: string, product: ProductData, settings?: 
   }
 
   result = result.replace(/{Package_code}/g, product.packageCode || '');
+  result = result.replace(/{Satin_alma_no}/g, product.purchaseNumber || '');
+  result = result.replace(/{Kaynak_koli}/g, product.sourceCarton || '');
+  result = result.replace(/{Tur}/g, product.productType || '');
   result = result.replace(/{Supplier_no}/g, product.supplierNo || product.urunKodu || '');
   result = result.replace(/{SKU}/g, product.sku || '');
   result = result.replace(/{Urun_kodu}/g, product.urunKodu || '');
@@ -72,4 +75,11 @@ export function resolveQrValue(rawValue: string, product: ProductData, settings:
   }
   // all_info — use the raw value (which often is {ALL_INFO})
   return normalizeQrValue(replaceVariables(rawValue || '{ALL_INFO}', product, settings), fallback);
+}
+
+
+export function resolveBarcodeValue(value: string, product: ProductData, settings?: LabelSettings): string {
+  // A package identity must never silently become a SKU barcode.
+  if (value === '{Package_code}') return (product.packageCode || '').trim();
+  return replaceVariables(value, product, settings) || product.sku || '';
 }

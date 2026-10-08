@@ -1,3 +1,4 @@
+import { PACKAGE_IDENTITY_TEMPLATE } from './package-identity-template.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -106,4 +107,40 @@ test('v1 state migration ürünleri silmeden template ve locationTemplate alanla
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+
+test('new 100x150 package identity contract renders before receipt and preserves legacy/location versions', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'label-identity-test-'));
+  const stateFile = path.join(directory, 'state.json');
+  await writeFile(stateFile, JSON.stringify({ version: 3, revision: 0, templates: [PACKAGE_LABEL_TEMPLATE, LOCATION_LABEL_TEMPLATE] }));
+  const before = await readTemplateState(stateFile);
+  const server = createWarehouseRendererApp({ stateFile, apiKey: 'fixture', nodeEnv: 'test' }).listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const response = await fetch(`${base}/api/v1/templates/default?purpose=goods_receipt&contract=package_identity`, { headers: { 'x-api-key': 'fixture' } });
+    assert.equal(response.status, 200);
+    const template = await response.json();
+    assert.equal(template.id, PACKAGE_IDENTITY_TEMPLATE.id);
+    assert.deepEqual([template.width, template.height], [100,150]);
+    assert.equal(template.elements.find(e => e.type === 'barcode').value, '{Package_code}');
+    const data = { Package_code: 'PKG-SYNTHETIC-0001', SKU: 'SKU-1', Supplier_no: 'SUP-1', Urun_adi: 'Fixture', Olcu: '25 mm', Parti_Lot: 'LOT-1', Paket_ici_adet: '29', Satin_alma_no: 'PO-1', Kaynak_koli: 'CARTON-1' };
+    assert.equal(replaceWarehouseVariables('{Package_code}|{SKU}|{Supplier_no}|{Paket_ici_adet}|{Parti_Lot}|{Satin_alma_no}|{Kaynak_koli}', data), 'PKG-SYNTHETIC-0001|SKU-1|SUP-1|29|LOT-1|PO-1|CARTON-1');
+    await assert.rejects(() => renderWarehouseLabelPdf({ template, data: { SKU: 'SKU-NOT-PACKAGE-ID' } }), /Barkod değeri boş/);
+    const first = await renderWarehouseLabelPdf({ template, data });
+    const second = await renderWarehouseLabelPdf({ template, data });
+    assert.deepEqual(first, second);
+    assert.match(first.toString('latin1'), /283\.464.*425\.196/);
+    const rendered = await fetch(`${base}/api/v1/render`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': 'fixture' }, body: JSON.stringify({ purpose: 'goods_receipt', contract: 'package_identity', data }) });
+    assert.equal(rendered.status, 200);
+    assert.equal(rendered.headers.get('x-label-template-id'), template.id);
+    assert.deepEqual(await readTemplateState(stateFile), before);
+    const saved = await writeTemplateState(stateFile, { ...before, templates: [...before.templates, template] }, [], { expectedRevision: 0 });
+    assert.equal(saved.templates.find(t => t.id === PACKAGE_LABEL_TEMPLATE.id).contentHash, before.templates.find(t => t.id === PACKAGE_LABEL_TEMPLATE.id).contentHash);
+    assert.equal(saved.templates.find(t => t.id === LOCATION_LABEL_TEMPLATE.id).contentHash, before.templates.find(t => t.id === LOCATION_LABEL_TEMPLATE.id).contentHash);
+    const outcomes = await Promise.allSettled([1,2].map(n => writeTemplateState(stateFile, { ...saved, templates: saved.templates.map(t => t.id === template.id ? { ...t, name: `Changed ${n}` } : t) }, [], { expectedRevision: saved.revision })));
+    assert.equal(outcomes.filter(o => o.status === 'fulfilled').length, 1);
+    assert.equal(outcomes.filter(o => o.status === 'rejected').length, 1);
+  } finally { server.closeAllConnections?.(); await new Promise(resolve => server.close(resolve)); await rm(directory, { recursive: true, force: true }); }
 });

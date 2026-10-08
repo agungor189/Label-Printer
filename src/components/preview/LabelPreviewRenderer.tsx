@@ -2,7 +2,7 @@ import React from 'react';
 import Barcode from 'react-barcode';
 import QRCode from 'react-qr-code';
 import { LabelElement, LabelTemplate, ProductData, LabelSettings } from '../../lib/types';
-import { QR_PREVIEW_QUIET_ZONE_RATIO, replaceVariables, resolveQrValue } from '../../lib/labelRenderer';
+import { QR_PREVIEW_QUIET_ZONE_RATIO, replaceVariables, resolveBarcodeValue, resolveQrValue } from '../../lib/labelRenderer';
 import { sanitizeLabelTemplate } from '../../lib/templateSafety';
 
 interface Props {
@@ -132,7 +132,8 @@ function ObjectRenderer({ el, product, settings, scale, printMm }: ObjectProps) 
   }
 
   if (el.type === 'barcode') {
-    const value = replaceVariables(el.value || '', product, settings) || product.sku || ' ';
+    const value = resolveBarcodeValue(el.value || '', product, settings);
+    if (!value) return <div style={base}>Paket kimliği gerekli</div>;
     const showText = el.showBarcodeText !== false;
     // react-barcode wants px dimensions; estimate width per bar so it fills the box
     const heightPx = Math.max(20, (printMm ? el.height * 3.78 : el.height * scale) - (showText ? 14 : 0));

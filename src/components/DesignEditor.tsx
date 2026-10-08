@@ -123,7 +123,7 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
       width: partial.type === 'qr' ? 20 : partial.type === 'barcode' ? 70 : 40,
       height: partial.type === 'qr' ? 20 : partial.type === 'line' ? 0.5 : partial.type === 'barcode' ? 12 : 8,
       value: partial.type === 'text' ? (isLocationEditor ? '{Lokasyon}' : 'Yeni Metin')
-        : partial.type === 'barcode' ? (isLocationEditor ? '{Lokasyon}' : '{SKU}')
+        : partial.type === 'barcode' ? (isLocationEditor ? '{Lokasyon}' : '{Package_code}')
         : partial.type === 'qr' ? '{ALL_INFO}'
         : '',
       fontSize: 3.5,
@@ -719,6 +719,9 @@ export function DesignEditor({ template: initialTemplate, onSave, sampleProduct,
               {(isLocationEditor ? [
                 { lbl: 'Lokasyon Kodu', val: '{Lokasyon}' },
               ] : [
+                { lbl: 'Paket kimliği', val: '{Package_code}' },
+                { lbl: 'Satın alma', val: '{Satin_alma_no}' },
+                { lbl: 'Kaynak koli', val: '{Kaynak_koli}' },
                 { lbl: 'SKU', val: '{SKU}' },
                 { lbl: 'Ürün Kodu', val: '{Urun_kodu}' },
                 { lbl: 'Malzeme', val: '{Malzeme}' },

@@ -1,3 +1,4 @@
+import { PACKAGE_IDENTITY_TEMPLATE } from './package-identity-template.mjs';
 import 'dotenv/config';
 import express from 'express';
 import fs from 'node:fs/promises';
@@ -32,7 +33,7 @@ function normalizeTemplate(template) {
 }
 
 async function readState(targetStateFile = stateFile) {
-  return { ...emptyState, ...(await readTemplateState(targetStateFile)) };
+  return { ...emptyState, ...(await readTemplateState(targetStateFile, [PACKAGE_IDENTITY_TEMPLATE])) };
 }
 
 async function writeState(nextState, targetStateFile = stateFile, expectedRevision) {
